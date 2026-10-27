@@ -1,0 +1,344 @@
+import React, { useState } from 'react';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateProfile } from 'firebase/auth';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
+
+export default function AccountSettings({ userData, onBack, onUpdateUserData }) {
+  const [fullName, setFullName] = useState(userData?.fullName || '');
+  const [phone, setPhone] = useState(userData?.phone || '');
+  const [profileImage, setProfileImage] = useState(userData?.profileimage || userData?.profileImage || '');
+  
+  // حقول كلمة السر الجديدة
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  const [loading, setLoading] = useState(false);
+  
+  // حالة النافذة المنبثقة (Modal) المخصصة للتحديثات
+  const [successModal, setSuccessModal] = useState({ show: false, message: '' });
+
+  // دالة اختيار وضغط الصورة
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 200;
+          const MAX_HEIGHT = 200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          setProfileImage(compressedDataUrl);
+        };
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // دالة حذف الصورة الشخصية
+  const handleDeleteImage = () => {
+    setProfileImage('');
+  };
+
+  // تحديث البيانات الشخصية وتحديد ما تم تحديثه لعرضه في النافذة المنبثقة
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    if (!auth.currentUser) return;
+
+    try {
+      setLoading(true);
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      const data = userSnap.exists() ? userSnap.data() : {};
+
+      const now = Date.now();
+      const sixMonths = 6 * 30 * 24 * 60 * 60 * 1000;
+
+      // التحقق من تغيير الاسم (مرة كل 6 أشهر)
+      if (fullName !== data.fullName && data.lastProfileUpdate) {
+        if (now - data.lastProfileUpdate < sixMonths) {
+          alert("عذراً، لا يمكنك تغيير الاسم إلا مرة واحدة كل 6 أشهر.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      // تتبع الحقول التي تم تغييرها فعلياً بدقة
+      let changedFields = [];
+      if (fullName !== data.fullName) changedFields.push('الاسم الكامل');
+      if (phone !== data.phone) changedFields.push('رقم التليفون');
+      
+      const oldImage = data.profileimage || data.profileImage || '';
+      if (profileImage !== oldImage) {
+        if (profileImage === '') {
+          changedFields.push('حذف صورة الملف الشخصي');
+        } else {
+          changedFields.push('صورة الملف الشخصي');
+        }
+      }
+
+      // 1. تحديث الاسم في Firebase Auth
+      await updateProfile(auth.currentUser, {
+        displayName: fullName
+      });
+
+      // 2. تحديث البيانات في Firestore (حفظ القيمة الفارغة إذا تم حذف الصورة)
+      await updateDoc(userRef, {
+        fullName: fullName,
+        phone: phone,
+        profileimage: profileImage,
+        lastProfileUpdate: now
+      });
+
+      // 3. تحديث الـ State الرئيسية لتختفي الصورة أو تتحدث فوراً
+      if (typeof onUpdateUserData === 'function') {
+        onUpdateUserData({
+          ...userData,
+          fullName,
+          phone,
+          profileimage: profileImage
+        });
+      }
+
+      // صياغة رسالة النافذة المنبثقة باسم الحقول المحدثة
+      let messageText = "تم تحديث البيانات بنجاح!";
+      if (changedFields.length > 0) {
+        messageText = `تم تحديث (${changedFields.join('، ')}) بنجاح!`;
+      }
+
+      setSuccessModal({ show: true, message: messageText });
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      alert("حدث خطأ أثناء تحديث البيانات: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // تغيير كلمة المرور
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('كلمة السر الجديدة غير متطابقة!');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError('كلمة السر يجب ألا تقل عن 6 أحرف.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+
+      await updatePassword(auth.currentUser, newPassword);
+      setSuccessModal({ show: true, message: "تم تحديث (كلمة المرور) بنجاح!" });
+      
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      console.error("Error updating password:", error);
+      setPasswordError('كلمة السر الحالية غير صحيحة أو حدث خطأ.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen w-full bg-slate-50 font-cairo flex flex-col relative" dir="rtl">
+      
+      {/* النافذة المنبثقة (Modal) التي تظهر عند نجاح التحديث مع ذكر اسم ما تم تحديثه */}
+      {successModal.show && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center gap-4">
+            <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-3xl shadow-inner">
+              ✨
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900 mb-1">تم بنجاح!</h3>
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                {successModal.message}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSuccessModal({ show: false, message: '' })}
+              className="w-full py-3 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-md mt-2"
+            >
+              موافق
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* شريط علوي خاص بالصفحة */}
+      <header className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+        <h1 className="text-lg font-extrabold text-slate-900">إعدادات الحساب</h1>
+        <button 
+          type="button" 
+          onClick={onBack}
+          className="text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+        >
+          <span>←</span>
+          <span>العودة للصفحة الرئيسية</span>
+        </button>
+      </header>
+
+      {/* محتوى الصفحة */}
+      <main className="flex-1 max-w-3xl w-full mx-auto p-6 flex flex-col gap-6 my-4">
+        
+        {/* نموذج البيانات الشخصية والصورة */}
+        <form onSubmit={handleUpdateProfile} className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm flex flex-col gap-6">
+          <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-3">الملف الشخصي والبيانات الأساسية</h3>
+          
+          {/* تغيير وحذف الصورة */}
+          <div className="flex items-center gap-5">
+            <div className="w-20 h-20 rounded-2xl bg-purple-100 overflow-hidden border-2 border-purple-200 flex items-center justify-center shrink-0">
+              {profileImage ? (
+                <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-2xl font-bold text-purple-700">{fullName.charAt(0) || '👤'}</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-slate-700">صورة الملف الشخصي</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <label className="bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer inline-flex items-center gap-2 border border-purple-200">
+                  <span>📁</span>
+                  <span>اختر صورة</span>
+                  <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                </label>
+
+                {profileImage && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteImage}
+                    className="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer inline-flex items-center gap-2 border border-rose-200"
+                  >
+                    <span>🗑️</span>
+                    <span>حذف الصورة</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-700">الاسم الكامل <span className="text-[10px] font-normal text-amber-600">(لا يتغير إلا مرة كل 6 أشهر)</span></label>
+            <input 
+              type="text" 
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-800 focus:outline-none focus:border-purple-600"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-700">رقم التليفون <span className="text-[10px] font-normal text-amber-600">(لا يتغير إلا مرة كل 6 أشهر)</span></label>
+            <input 
+              type="text" 
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-800 focus:outline-none focus:border-purple-600"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3.5 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-md mt-2"
+          >
+            {loading ? 'جاري الحفظ...' : 'حفظ التعديلات الشخصية'}
+          </button>
+        </form>
+
+        {/* نموذج تغيير كلمة السر */}
+        <form onSubmit={handleUpdatePassword} className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm flex flex-col gap-6">
+          <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-3">تغيير كلمة السر</h3>
+          
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-700">كلمة السر الحالية</label>
+            <input 
+              type="password" 
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-800 focus:outline-none focus:border-purple-600"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-700">كلمة السر الجديدة</label>
+            <input 
+              type="password" 
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-800 focus:outline-none focus:border-purple-600"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-700">تأكيد كلمة السر الجديدة</label>
+            <input 
+              type="password" 
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-800 focus:outline-none focus:border-purple-600"
+              required
+            />
+          </div>
+
+          {passwordError && (
+            <p className="text-xs font-bold text-rose-600 bg-rose-50 p-3 rounded-xl border border-rose-200 text-center">
+              {passwordError}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-md mt-2"
+          >
+            {loading ? 'جاري التحديث...' : 'تحديث كلمة السر'}
+          </button>
+        </form>
+
+      </main>
+    </div>
+  );
+}
