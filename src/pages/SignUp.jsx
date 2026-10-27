@@ -368,7 +368,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
   return null;
 }
 
-// مكون الفورم الموحد (تم تعديل الحاوية لتكون ثابتة بخلفية ومربع داخلي قابل للتمرير)
+// مكون الفورم الموحد
 function RegisterForm({ 
   title, isImageRequired, isEmailRequired, showCompanyName, showSpecialization, specializationOptions,
   onSubmit, onBack, bgImage, fullName, setFullName, companyName, setCompanyName, 
@@ -391,7 +391,6 @@ function RegisterForm({
         </button>
       </div>
 
-      {/* الفورم الآن ثابت الارتفاع مع Scroll داخلي للحقول */}
       <form onSubmit={onSubmit} className="relative z-10 flex flex-col gap-3 w-full max-w-md max-h-[85vh] p-6 shadow-2xl rounded-3xl border border-slate-100 bg-white/95 backdrop-blur-md overflow-y-auto">
         <h2 className="text-xl font-extrabold text-center text-slate-900 mb-1">{title}</h2>
         <p className="text-xs text-center text-slate-500 mb-2">أدخل البيانات المطلوبة بدقة</p>
