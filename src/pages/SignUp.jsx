@@ -103,7 +103,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
   // --- 1. الشاشة الرئيسية للتسجيل ---
   if (step === 'main') {
     return (
-      <div className="relative min-h-screen w-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-x-hidden" style={{ backgroundImage: `url(${bgWaves})` }} dir="rtl">
+      <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-hidden" style={{ backgroundImage: `url(${bgWaves})` }} dir="rtl">
         <div className="absolute top-6 right-6 z-20">
           <button 
             type="button" 
@@ -170,7 +170,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
   // --- 2. تفرعات العملاء ---
   if (step === 'client_type') {
     return (
-      <div className="relative min-h-screen w-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-x-hidden" style={{ backgroundImage: `url(${bgWaves})` }} dir="rtl">
+      <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-hidden" style={{ backgroundImage: `url(${bgWaves})` }} dir="rtl">
         <div className="absolute top-6 right-6 z-20">
           <button 
             type="button" 
@@ -227,7 +227,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
   // --- 3. تفرعات مزودي الخدمة ---
   if (step === 'provider_type') {
     return (
-      <div className="relative min-h-screen w-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-x-hidden" style={{ backgroundImage: `url(${bgWaves})` }} dir="rtl">
+      <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-hidden" style={{ backgroundImage: `url(${bgWaves})` }} dir="rtl">
         <div className="absolute top-6 right-6 z-20">
           <button 
             type="button" 
@@ -368,7 +368,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
   return null;
 }
 
-// مكون الفورم الموحد
+// مكون الفورم الموحد (تم تعديل الحاوية لتكون ثابتة بخلفية ومربع داخلي قابل للتمرير)
 function RegisterForm({ 
   title, isImageRequired, isEmailRequired, showCompanyName, showSpecialization, specializationOptions,
   onSubmit, onBack, bgImage, fullName, setFullName, companyName, setCompanyName, 
@@ -376,11 +376,10 @@ function RegisterForm({
   password, setPassword, confirmPassword, setConfirmPassword, 
   specialization, setSpecialization, errorMsg, loading, usernameTaken, attemptedSubmit 
 }) {
-  // لا يظهر اللون الأحمر إلا إذا حاول المستخدم الإرسال وكانت القاعة '-'
   const isSpecInvalid = showSpecialization && attemptedSubmit && specialization === '-';
 
   return (
-    <div className="relative min-h-screen w-screen flex flex-col items-center justify-center py-10 px-4 font-cairo bg-cover bg-center bg-no-repeat overflow-x-hidden" style={{ backgroundImage: `url(${bgImage})` }} dir="rtl">
+    <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-hidden" style={{ backgroundImage: `url(${bgImage})` }} dir="rtl">
       
       <div className="absolute top-6 right-6 z-20">
         <button 
@@ -392,7 +391,8 @@ function RegisterForm({
         </button>
       </div>
 
-      <form onSubmit={onSubmit} className="relative z-10 flex flex-col gap-3 w-full max-w-md p-6 shadow-2xl rounded-3xl border border-slate-100 bg-white/95 backdrop-blur-md mt-12">
+      {/* الفورم الآن ثابت الارتفاع مع Scroll داخلي للحقول */}
+      <form onSubmit={onSubmit} className="relative z-10 flex flex-col gap-3 w-full max-w-md max-h-[85vh] p-6 shadow-2xl rounded-3xl border border-slate-100 bg-white/95 backdrop-blur-md overflow-y-auto">
         <h2 className="text-xl font-extrabold text-center text-slate-900 mb-1">{title}</h2>
         <p className="text-xs text-center text-slate-500 mb-2">أدخل البيانات المطلوبة بدقة</p>
         
@@ -423,7 +423,6 @@ function RegisterForm({
           </div>
         )}
 
-        {/* حقل التخصص المحدث */}
         {showSpecialization && (
           <div className="flex flex-col gap-1">
             <label className="text-xs font-bold text-slate-700">التخصص <span className="text-rose-500">(إجباري)</span></label>
