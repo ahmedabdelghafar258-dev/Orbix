@@ -4,7 +4,6 @@ import { doc, setDoc, getDocs, getDoc, collection, query, where } from 'firebase
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
 
-// قاعدة بيانات شاملة ومحدثة لكل قرى ومراكز مصر مع التصحيح الدقيق لـ "هوارة عدلان"
 const EGYPT_GOVERNORATES_DATA = {
   "الفيوم": {
     "مركز الفيوم": [
@@ -192,7 +191,6 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
     return () => clearTimeout(timer);
   }, [username]);
 
-  // الأكشن الحقيقي والفعلي لتسجيل الدخول باستخدام جوجل مع التحقق الآمن
   const handleGoogleSignIn = async () => {
     setErrorMsg('');
     setLoading(true);
@@ -583,20 +581,22 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
 }
 
 function RegisterForm({ 
-  title, isImageRequired, isEmailRequired, showCompanyName, showSpecialization, showAddress, specializationOptions,
-  onSubmit, onGoogleSignIn, onBack, bgImage, fullName, setFullName, companyName, setCompanyName, 
+  title, isImageRequired, isEmailRequired, showCompanyName, showSpecialization, showAddress, specializationOptions = [],
+  onSubmit, onGoogleSignIn, onBack, bgImage, fullName, setFullName, companyName = '', setCompanyName = () => {}, 
   username, setUsername, phone, setPhone, email, setEmail, 
   password, setPassword, confirmPassword, setConfirmPassword, 
   specialization, setSpecialization, errorMsg, loading, usernameTaken, attemptedSubmit,
-  governorate, setGovernorate, cityOrCenter, setCityOrCenter, villageOrDistrict, setVillageOrDistrict, streetDetails, setStreetDetails, EGYPT_GOVERNORATES_DATA 
+  governorate = '-', setGovernorate = () => {}, cityOrCenter = '-', setCityOrCenter = () => {}, 
+  villageOrDistrict = '-', setVillageOrDistrict = () => {}, streetDetails = '', setStreetDetails = () => {}, 
+  EGYPT_GOVERNORATES_DATA = {} 
 }) {
   const isSpecInvalid = showSpecialization && attemptedSubmit && specialization === '-';
   const isGovInvalid = showAddress && attemptedSubmit && governorate === '-';
   const isCityInvalid = showAddress && attemptedSubmit && cityOrCenter === '-';
   const isStreetInvalid = showAddress && attemptedSubmit && !streetDetails.trim();
 
-  const availableCenters = governorate !== '-' ? Object.keys(EGYPT_GOVERNORATES_DATA[governorate] || {}) : [];
-  const availableVillages = (governorate !== '-' && cityOrCenter !== '-') ? EGYPT_GOVERNORATES_DATA[governorate][cityOrCenter] || [] : [];
+  const availableCenters = (governorate !== '-' && EGYPT_GOVERNORATES_DATA[governorate]) ? Object.keys(EGYPT_GOVERNORATES_DATA[governorate]) : [];
+  const availableVillages = (governorate !== '-' && cityOrCenter !== '-' && EGYPT_GOVERNORATES_DATA[governorate]?.[cityOrCenter]) ? EGYPT_GOVERNORATES_DATA[governorate][cityOrCenter] : [];
 
   return (
     <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-hidden" style={{ backgroundImage: `url(${bgImage})` }} dir="rtl">
