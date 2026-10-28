@@ -192,7 +192,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
     return () => clearTimeout(timer);
   }, [username]);
 
-  // الأكشن الحقيقي والفعلي لتسجيل الدخول باستخدام جوجل
+  // الأكشن الحقيقي والفعلي لتسجيل الدخول باستخدام جوجل مع التحقق الآمن
   const handleGoogleSignIn = async () => {
     setErrorMsg('');
     setLoading(true);
@@ -200,6 +200,10 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
+
+      if (!user) {
+        throw new Error("لم يتم استرجاع بيانات المستخدم من جوجل.");
+      }
 
       const userDocRef = doc(db, "users", user.uid);
       const userDocSnap = await getDoc(userDocRef);
@@ -229,7 +233,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
       }
     } catch (error) {
       console.error("Google Sign-In Error:", error);
-      setErrorMsg('حدث خطأ أثناء التسجيل باستخدام جوجل: ' + error.message);
+      setErrorMsg('حدث خطأ أثناء التسجيل باستخدام جوجل: ' + (error.message || 'خطأ غير معروف'));
     } finally {
       setLoading(false);
     }
