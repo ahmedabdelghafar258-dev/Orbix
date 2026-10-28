@@ -1,102 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { collection, addDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
 
-const EGYPT_GOVERNORATES_DATA = {
-  "القاهرة": [
-    "التجمع الخامس", "مدينة نصر", "المعادي", "مصر الجديدة", "الدقي", "المقطم", 
-    "المهندسين", "شبرا", "عين شمس", "المرج", "حلوان", "المنيل", "الزمالك", "الروضة", "العباسية"
-  ],
-  "الجيزة": [
-    "الشيخ زايد", "6 أكتوبر", "الهرم", "فيصل", "العجوزة", "البدرشين", 
-    "أبو النمرس", "العياط", "الصف", "أطفيح", "كرداسة", "منشأة القناطر", "الوراق", "إمبابة"
-  ],
-  "الإسكندرية": [
-    "الإسكندرية (وسط/شرق)", "منتزه أول", "منتزه ثان", "العامريّة", "العجمي", "البيطاش", "برج العرب", "ابيس"
-  ],
-  "القليوبية": [
-    "بنها", "شبرا الخيمة", "قليوب", "قها", "الخصوص", "القناطر الخيرية", "الخانكة", "شبين القناطر", "كفر شكر", "طوخ"
-  ],
-  "الدقهلية": [
-    "المنصورة", "طلخا", "ميت غمر", "دكرنس", "سنبلاوين", "أجا", "بلقاس", "المنزلة", "تمي الأمديد", "نبروه", "الجمالية", "شربين"
-  ],
-  "الشرقية": [
-    "الزقازيق", "العاشر من رمضان", "بلبيس", "منيا القمح", "أبو كبير", "فاقوس", "ديرب نجم", "الحسينية", "كفر صقر", "أبو حماد", "الإبراهيمية", "ههيا", "مشتول السوق"
-  ],
-  "الغربية": [
-    "طنطا", "المحلة الكبرى", "كفر الزيات", "زفتى", "السنطة", "بسيون", "سمنود", "قطور"
-  ],
-  "المنوفية": [
-    "شبين الكوم", "منوف", "السادات", "الشهداء", "تلا", "سرس الليان", "أشمون", "قويسنا", "بركة السبع"
-  ],
-  "البحيرة": [
-    "دمنهور", "كفر الدوار", "رشيد", "إيتاي البارود", "أبو حمص", "حوش عيسى", "كوم حمادة", "النوبارية الجديدة", "إدكو", "محمودية"
-  ],
-  "كفر الشيخ": [
-    "كفر الشيخ", "دسوق", "فوة", "مطوبس", "بلطيم", "بيلا", "الحامول", "سيدي سالم", "قلين", "الرياض"
-  ],
-  "الدمياط": [
-    "دمياط", "فارسكور", "الزرقا", "السرو", "كفر البطيخ", "رأس البر", "دمياط الجديدة", "عزبة البرج", "الروضة"
-  ],
-  "بورسعيد": [
-    "بورسعيد (الأحياء)", "بورفؤاد", "المنطقة الحرة الاستثمارية"
-  ],
-  "الإسماعيلية": [
-    "الإسماعيلية", "فايد", "القنطرة شرق", "القنطرة غرب", "التل الكبير", "أبو صوير", "القصاصين الجديدة"
-  ],
-  "السويس": [
-    "السويس (الأحياء)", "العين السخنة"
-  ],
-  "الفيوم": [
-    "مدينة الفيوم", "الفيوم الجديدة", "مركز الفيوم", "مركز سنورس", "مركز إطسا", "مركز أبشواي", "مركز طامية", "مركز يوسف الصديق"
-  ],
-  "بني سويف": [
-    "بني سويف", "الواسطى", "ناصر", "إهناسيا", "ببا", "الفشن", "سمسطا", "بني سويف الجديدة"
-  ],
-  "المنيا": [
-    "المنيا", "ملوي", "بني مزار", "سمالوط", "أبو قرقاص", "دير مواس", "مغاغة", "العدوة", "المنيا الجديدة"
-  ],
-  "أسيوط": [
-    "أسيوط", "ديروط", "منفلوط", "أبو تيج", "الغنايم", "ساحل سليم", "البداري", "أبنوب", "صدفا", "أسيوط الجديدة"
-  ],
-  "سوهاج": [
-    "سوهاج", "جرجا", "طهطا", "المراغة", "أخميم", "المنشأة", "جهينة", "دار السلام", "ساقلتة", "العسيرات"
-  ],
-  "قنا": [
-    "قنا", "نجع حمادي", "دشنا", "قوص", "فرشوط", "ابوتشت", "قفط", "نقادة"
-  ],
-  "أسوان": [
-    "أسوان", "إدفو", "كوم أمبو", "دراو", "أبو سمبل السياحية"
-  ],
-  "الأقصر": [
-    "الأقصر", "إسنا", "أرمنت", "قرنة", "البياضية", "الزينية"
-  ],
-  "البحر الأحمر": [
-    "الغردقة", "راس غارب", "سفاجا", "القصير", "مرسى علم", "شلاتين", "حلايب"
-  ],
-  "الوادي الجديد": [
-    "الخارجة", "الداخلة", "باريس", "الفرافرة", "بلاط"
-  ],
-  "مطروح": [
-    "مرسى مطروح", "الحمام", "الضبعة", "سيدي براني", "السلوم", "سيوة", "العلمين"
-  ],
-  "شمال سيناء": [
-    "العريش", "الشيخ زويد", "رفح", "بئر العبد", "نخل", "الحسنة"
-  ],
-  "جنوب سيناء": [
-    "تور سيناء", "شرم الشيخ", "دهب", "نويبع", "طابا", "سنت كاترين", "أبو رديس", "أبو زنيمة"
-  ]
-};
-
 export default function NewOrder({ userData, onBack }) {
   const [currentStep, setCurrentStep] = useState(1);
   
-  // تعبئة العنوان أوتوماتيك من بيانات العميل المسجلة (userData)
-  const [selectedGov, setSelectedGov] = useState(userData?.address?.governorate || '-');
-  const [selectedCity, setSelectedCity] = useState(userData?.address?.city || '-');
-  const [streetDetails, setStreetDetails] = useState(userData?.address?.streetDetails || '');
-
   const [serviceCategory, setServiceCategory] = useState('-');
   const [sparePartsBy, setSparePartsBy] = useState('-');
   const [description, setDescription] = useState('');
@@ -105,29 +14,24 @@ export default function NewOrder({ userData, onBack }) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // تحديث الحقول لو بيانات الـ userData اتأخرت في التحميل
-  useEffect(() => {
-    if (userData?.address) {
-      if (userData.address.governorate) setSelectedGov(userData.address.governorate);
-      if (userData.address.city) setSelectedCity(userData.address.city);
-      if (userData.address.streetDetails) setStreetDetails(userData.address.streetDetails);
-    }
-  }, [userData]);
-
-  const availableCities = selectedGov !== '-' ? EGYPT_GOVERNORATES_DATA[selectedGov] || [] : [];
+  // سحب العنوان المسجل في حساب العميل (من الإعدادات أو التسجيل) أوتوماتيكياً
+  const userAddress = userData?.address || {};
+  const hasAddress = userAddress.governorate && userAddress.city && userAddress.streetDetails;
 
   const handleNextStep = () => {
     setAttemptedNext(true);
     if (currentStep === 1) {
       if (
-        selectedGov === '-' || 
-        selectedCity === '-' || 
-        !streetDetails.trim() || 
+        !hasAddress ||
         serviceCategory === '-' || 
-        sparePartsBy === '-' || 
         !description.trim()
       ) {
         return; 
+      }
+    }
+    if (currentStep === 2) {
+      if (sparePartsBy === '-') {
+        return;
       }
     }
     setAttemptedNext(false);
@@ -142,7 +46,7 @@ export default function NewOrder({ userData, onBack }) {
   const handleFinalSubmit = async () => {
     if (!auth.currentUser) return;
 
-    const fullAddress = `${selectedGov}\n${selectedCity}\n${streetDetails}`;
+    const fullAddress = `${userAddress.governorate}\n${userAddress.city}\n${userAddress.streetDetails}`;
 
     try {
       setSubmitting(true);
@@ -166,9 +70,9 @@ export default function NewOrder({ userData, onBack }) {
         clientId: auth.currentUser.uid,
         clientName: userData?.fullName || 'عميل Orbix',
         clientImage: userData?.profileimage || userData?.profileImage || '',
-        governorate: selectedGov,
-        city: selectedCity,
-        streetDetails,
+        governorate: userAddress.governorate,
+        city: userAddress.city,
+        streetDetails: userAddress.streetDetails,
         address: fullAddress,
         serviceCategory,
         category: serviceCategory,
@@ -191,14 +95,13 @@ export default function NewOrder({ userData, onBack }) {
     }
   };
 
-  const isGovInvalid = attemptedNext && selectedGov === '-';
-  const isCityInvalid = attemptedNext && selectedCity === '-';
-  const isStreetInvalid = attemptedNext && !streetDetails.trim();
   const isCategoryInvalid = attemptedNext && serviceCategory === '-';
-  const isSparePartsInvalid = attemptedNext && sparePartsBy === '-';
   const isDescInvalid = attemptedNext && !description.trim();
+  const isSparePartsInvalid = attemptedNext && sparePartsBy === '-';
 
-  const fullAddressPreview = `${selectedGov !== '-' ? selectedGov : ''} ${selectedCity !== '-' ? '- ' + selectedCity : ''} ${streetDetails ? '- ' + streetDetails : ''}`;
+  const fullAddressPreview = hasAddress 
+    ? `${userAddress.governorate} - ${userAddress.city} - ${userAddress.streetDetails}` 
+    : 'لا يوجد عنوان مسجل، يرجى إضافته من الإعدادات';
 
   return (
     <div 
@@ -243,7 +146,7 @@ export default function NewOrder({ userData, onBack }) {
                 }`}>
                   {currentStep > 1 ? '✓' : '1'}
                 </div>
-                <span className={`text-[11px] mt-1.5 transition-all ${currentStep === 1 ? 'font-extrabold text-purple-900' : 'font-bold text-slate-600'}`}>العنوان والتفاصيل</span>
+                <span className={`text-[11px] mt-1.5 transition-all ${currentStep === 1 ? 'font-extrabold text-purple-900' : 'font-bold text-slate-600'}`}>تفاصيل الطلب</span>
               </div>
 
               <div className="relative z-10 flex flex-col items-center">
@@ -253,7 +156,7 @@ export default function NewOrder({ userData, onBack }) {
                 }`}>
                   {currentStep > 2 ? '✓' : '2'}
                 </div>
-                <span className={`text-[11px] mt-1.5 transition-all ${currentStep === 2 ? 'font-extrabold text-purple-900' : 'font-bold text-slate-600'}`}>التكلفة والرسوم</span>
+                <span className={`text-[11px] mt-1.5 transition-all ${currentStep === 2 ? 'font-extrabold text-purple-900' : 'font-bold text-slate-600'}`}>التكلفة وقطع الغيار</span>
               </div>
 
               <div className="relative z-10 flex flex-col items-center">
@@ -271,64 +174,15 @@ export default function NewOrder({ userData, onBack }) {
               {currentStep === 1 && (
                 <div className="flex flex-col gap-4 animate-fadeIn">
                   
-                  {/* صندوق توضيحي للعنوان المسجل */}
-                  <div className="p-3 bg-purple-50 border border-purple-100 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <span className="text-[11px] font-bold text-purple-900 block mb-0.5">📍 العنوان الحالي (من الإعدادات):</span>
-                      <span className="text-xs text-slate-700 font-medium">{fullAddressPreview || 'جاري تحميل العنوان...'}</span>
+                  {/* صندوق العنوان المسجل أوتوماتيكياً */}
+                  <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-2xl flex flex-col gap-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-extrabold text-purple-900">📍 عنوان التوصيل الحالي (من إعدادات الحساب):</span>
+                      <span className="text-[10px] text-purple-700 font-bold bg-white px-2 py-0.5 rounded-md shadow-2xs">ثابت</span>
                     </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-slate-700">المحافظة <span className="text-rose-500">*</span></label>
-                    <select 
-                      value={selectedGov} 
-                      onChange={(e) => {
-                        setSelectedGov(e.target.value);
-                        setSelectedCity('-');
-                      }}
-                      className={`p-3 border rounded-xl text-xs outline-none bg-white transition ${
-                        isGovInvalid ? 'border-rose-500 bg-rose-50 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'
-                      }`}
-                    >
-                      <option value="-" disabled>-- اختر المحافظة --</option>
-                      {Object.keys(EGYPT_GOVERNORATES_DATA).map((gov) => (
-                        <option key={gov} value={gov} className="text-slate-900">{gov}</option>
-                      ))}
-                    </select>
-                    {isGovInvalid && <span className="text-[10px] font-bold text-rose-600">يجب اختيار المحافظة</span>}
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-slate-700">المدينة أو المركز <span className="text-rose-500">*</span></label>
-                    <select 
-                      value={selectedCity} 
-                      onChange={(e) => setSelectedCity(e.target.value)}
-                      disabled={selectedGov === '-'}
-                      className={`p-3 border rounded-xl text-xs outline-none bg-white transition disabled:bg-slate-100 disabled:cursor-not-allowed ${
-                        isCityInvalid ? 'border-rose-500 bg-rose-50 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'
-                      }`}
-                    >
-                      <option value="-" disabled>-- اختر المدينة أو المركز --</option>
-                      {availableCities.map((city) => (
-                        <option key={city} value={city} className="text-slate-900">{city}</option>
-                      ))}
-                    </select>
-                    {isCityInvalid && <span className="text-[10px] font-bold text-rose-600">يجب اختيار المدينة أو المركز</span>}
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-slate-700">القرية، اسم الشارع، ورقم البيت / العقار <span className="text-rose-500">*</span></label>
-                    <input 
-                      type="text" 
-                      placeholder="مثال: قرية قحافة، شارع الجمهورية، عمارة 5" 
-                      value={streetDetails} 
-                      onChange={(e) => setStreetDetails(e.target.value)}
-                      className={`p-3 border rounded-xl text-xs outline-none bg-white transition ${
-                        isStreetInvalid ? 'border-rose-500 bg-rose-50 text-rose-600' : 'border-slate-300 focus:border-purple-700'
-                      }`}
-                    />
-                    {isStreetInvalid && <span className="text-[10px] font-bold text-rose-600">تفاصيل العنوان إجبارية</span>}
+                    <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                      {hasAddress ? fullAddressPreview : <span className="text-rose-500 font-bold">لا يوجد عنوان مسجل في حسابك. يرجى إضافته من صفحة الإعدادات.</span>}
+                    </p>
                   </div>
 
                   <div className="flex flex-col gap-1">
@@ -352,6 +206,38 @@ export default function NewOrder({ userData, onBack }) {
                   </div>
 
                   <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-slate-700">وصف تفصيلي للمشكلة <span className="text-rose-500">*</span></label>
+                    <textarea 
+                      rows="3"
+                      placeholder="اكتب تفاصيل المشكلة والأعطال هنا..." 
+                      value={description} 
+                      onChange={(e) => setDescription(e.target.value)}
+                      className={`p-3 border rounded-xl text-xs outline-none bg-white resize-none transition ${
+                        isDescInvalid ? 'border-rose-500 bg-rose-50 text-rose-600' : 'border-slate-300 focus:border-purple-700'
+                      }`}
+                    />
+                    {isDescInvalid && <span className="text-[10px] font-bold text-rose-600">وصف المشكلة إجباري</span>}
+                  </div>
+
+                </div>
+              )}
+
+              {currentStep === 2 && (
+                <div className="flex flex-col gap-5 animate-fadeIn py-2">
+                  <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl flex items-center gap-4">
+                    <div className="w-12 h-12 bg-purple-700 text-white rounded-xl flex items-center justify-center text-xl shrink-0 font-extrabold">
+                      💵
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-purple-900 mb-0.5">مصاريف زيارة ثابتة</h4>
+                      <p className="text-[11px] text-purple-700 leading-relaxed">
+                        يتم احتساب مبلغ وقدره <strong className="font-extrabold text-slate-900">200 جنيه</strong> مصاريف زيارة الفني وتقييم العطل للمنشأة.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* خانة اختيار قطع الغيار في الخطوة الثانية */}
+                  <div className="flex flex-col gap-1">
                     <label className="text-xs font-bold text-slate-700">كيف تريد أن يتم شراء قطع الغيار إذا لزم؟ <span className="text-rose-500">*</span></label>
                     <select
                       value={sparePartsBy}
@@ -369,49 +255,14 @@ export default function NewOrder({ userData, onBack }) {
                     )}
                   </div>
 
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-slate-700">وصف تفصيلي للمشكلة <span className="text-rose-500">*</span></label>
-                    <textarea 
-                      rows="2"
-                      placeholder="اكتب تفاصيل المشكلة والأعطال هنا..." 
-                      value={description} 
-                      onChange={(e) => setDescription(e.target.value)}
-                      className={`p-3 border rounded-xl text-xs outline-none bg-white resize-none transition ${
-                        isDescInvalid ? 'border-rose-500 bg-rose-50 text-rose-600' : 'border-slate-300 focus:border-purple-700'
-                      }`}
-                    />
-                    {isDescInvalid && <span className="text-[10px] font-bold text-rose-600">وصف المشكلة إجباري</span>}
-                  </div>
-
-                </div>
-              )}
-
-              {currentStep === 2 && (
-                <div className="flex flex-col gap-5 animate-fadeIn py-4">
-                  <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl flex items-center gap-4">
-                    <div className="w-12 h-12 bg-purple-700 text-white rounded-xl flex items-center justify-center text-xl shrink-0 font-extrabold">
-                      💵
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-purple-900 mb-0.5">مصاريف زيارة ثابتة</h4>
-                      <p className="text-[11px] text-purple-700 leading-relaxed">
-                        يتم احتساب مبلغ وقدره <strong className="font-extrabold text-slate-900">200 جنيه</strong> مصاريف زيارة الفني وتقييم العطل للمنشأة.
-                      </p>
-                    </div>
-                  </div>
-
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-2">
                     <div className="flex justify-between text-xs">
-                      <span className="text-slate-500">العنوان الكامل:</span>
+                      <span className="text-slate-500">العنوان المسجل:</span>
                       <span className="font-bold text-slate-900">{fullAddressPreview}</span>
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-500">القسم:</span>
                       <span className="font-bold text-slate-900">{serviceCategory}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-slate-500">قطع الغيار إذا لزم:</span>
-                      <span className="font-bold text-slate-900">{sparePartsBy === 'tech' ? 'الفني يجلبها بالفواتير الخاصة بالمعرض' : 'العميل سيوفرها'}</span>
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-500">مصاريف الزيارة:</span>
@@ -452,7 +303,8 @@ export default function NewOrder({ userData, onBack }) {
                 <button 
                   type="button" 
                   onClick={handleNextStep}
-                  className="py-3 px-6 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-md"
+                  disabled={!hasAddress}
+                  className="py-3 px-6 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-md disabled:opacity-50"
                 >
                   التالي ←
                 </button>
