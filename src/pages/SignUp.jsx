@@ -4,6 +4,15 @@ import { doc, setDoc, getDocs, collection, query, where } from 'firebase/firesto
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
 
+// داتا للمحافظات والمدن في مصر
+const egyptLocations = {
+  "القاهرة": ["مدينة نصر", "التجمع الخامس", "المعادي", "مصر الجديدة", "الزمالك", "شبرا", "المقطم"],
+  "الجيزة": ["الشيخ زايد", "السادس من أكتوبر", "الدقي", "الهرم", "فيصل", "المهندسين"],
+  "الإسكندرية": ["سموحة", "المندرة", "العريش", "ميامي", "سيدي بشر", "البيطاش"],
+  "القليوبية": ["بنها", "شبرا الخيمة", "قليوب", "الخانكة"],
+  "المنصورة": ["أجا", "ميت غمر", "بلقاس", "المنصورة المدينة"]
+};
+
 export default function SignUp({ onSwitchToSignIn, onBack }) {
   const [step, setStep] = useState('main');
 
@@ -13,15 +22,15 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
   const [companyName, setCompanyName] = useState('');
-  
-  // حقل التخصص
   const [specialization, setSpecialization] = useState('-');
-  
-  // حالة جديدة عشان نعرف هل المستخدم حاول يضغط إرسال ولا لسه (عشان نظهر الخطأ بعد المحاولة فقط)
-  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
+  // حقول العنوان بالتفصيل
+  const [governorate, setGovernorate] = useState('-');
+  const [city, setCity] = useState('-');
+  const [streetDetails, setStreetDetails] = useState('');
+
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [usernameTaken, setUsernameTaken] = useState(false);
@@ -60,7 +69,6 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
       return;
     }
 
-    // التحقق من اختيار التخصص للفنيين وشركات الصيانة
     if ((userSubtype === 'tech' || userSubtype === 'provider_company') && specialization === '-') {
       setErrorMsg('يرجى اختيار التخصص المناسب قبل إتمام التسجيل.');
       return;
@@ -68,6 +76,12 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
 
     if ((userSubtype === 'client_company' || userSubtype === 'provider_company') && !email) {
       setErrorMsg('البريد الإلكتروني إجباري للشركات والكيانات.');
+      return;
+    }
+
+    // التحقق من استكمال العنوان للعملاء فقط
+    if (userCategory === 'client' && (governorate === '-' || city === '-' || !streetDetails.trim())) {
+      setErrorMsg('يرجى استكمال تفاصيل العنوان (المحافظة، المدينة، والشارع).');
       return;
     }
 
@@ -80,7 +94,8 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
       const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
       const user = userCredential.user;
 
-      await setDoc(doc(db, "users", user.uid), {
+      // تجهيز كائن البيانات الأساسي
+      const userData = {
         uid: user.uid,
         userCategory: userCategory,
         userSubtype: userSubtype,
@@ -91,7 +106,18 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         email: email || '',
         specialization: specialization !== '-' ? specialization : '',
         createdAt: new Date()
-      });
+      };
+
+      // إضافة العنوان للعملاء فقط
+      if (userCategory === 'client') {
+        userData.address = {
+          governorate: governorate,
+          city: city,
+          streetDetails: streetDetails.trim()
+        };
+      }
+
+      await setDoc(doc(db, "users", user.uid), userData);
 
     } catch (error) {
       setErrorMsg('حدث خطأ أثناء إنشاء الحساب: ' + error.message);
@@ -290,12 +316,13 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         isEmailRequired={false}
         showCompanyName={false}
         showSpecialization={false}
+        showAddress={true} // العنوان يظهر للعملاء فقط
         onSubmit={(e) => { e.preventDefault(); handleSubmitRegistration('client', 'individual'); }}
         onBack={() => setStep('client_type')}
         bgImage={bgWaves}
         specializationOptions={[]}
-        attemptedSubmit={false}
-        {...{ fullName, setFullName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken }}
+        attemptedSubmit={attemptedSubmit}
+        {...{ fullName, setFullName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, streetDetails, setStreetDetails, egyptLocations }}
       />
     );
   }
@@ -308,12 +335,13 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         isEmailRequired={true}
         showCompanyName={true}
         showSpecialization={false}
+        showAddress={true} // العنوان يظهر للعملاء فقط
         onSubmit={(e) => { e.preventDefault(); handleSubmitRegistration('client', 'client_company'); }}
         onBack={() => setStep('client_type')}
         bgImage={bgWaves}
         specializationOptions={[]}
-        attemptedSubmit={false}
-        {...{ fullName, setFullName, companyName, setCompanyName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken }}
+        attemptedSubmit={attemptedSubmit}
+        {...{ fullName, setFullName, companyName, setCompanyName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, streetDetails, setStreetDetails, egyptLocations }}
       />
     );
   }
@@ -326,6 +354,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         isEmailRequired={false}
         showCompanyName={false}
         showSpecialization={true}
+        showAddress={false} // العنوان لا يظهر لمزودي الخدمة
         specializationOptions={[
           { value: 'AC Maintenance', label: 'صيانة تكييف' },
           { value: 'Electricity', label: 'كهرباء' },
@@ -336,7 +365,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         onBack={() => setStep('provider_type')}
         bgImage={bgWaves}
         attemptedSubmit={attemptedSubmit}
-        {...{ fullName, setFullName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken }}
+        {...{ fullName, setFullName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, streetDetails, setStreetDetails, egyptLocations }}
       />
     );
   }
@@ -349,6 +378,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         isEmailRequired={true}
         showCompanyName={true}
         showSpecialization={true}
+        showAddress={false} // العنوان لا يظهر لمزودي الخدمة
         specializationOptions={[
           { value: 'Comprehensive', label: 'شركة شاملة' },
           { value: 'Electricity', label: 'كهرباء' },
@@ -360,7 +390,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         onBack={() => setStep('provider_type')}
         bgImage={bgWaves}
         attemptedSubmit={attemptedSubmit}
-        {...{ fullName, setFullName, companyName, setCompanyName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken }}
+        {...{ fullName, setFullName, companyName, setCompanyName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, streetDetails, setStreetDetails, egyptLocations }}
       />
     );
   }
@@ -368,15 +398,21 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
   return null;
 }
 
-// مكون الفورم الموحد
+// مكون الفورم الموحد مع إمكانية إظهار العنوان للعملاء فقط
 function RegisterForm({ 
-  title, isImageRequired, isEmailRequired, showCompanyName, showSpecialization, specializationOptions,
+  title, isImageRequired, isEmailRequired, showCompanyName, showSpecialization, showAddress, specializationOptions,
   onSubmit, onBack, bgImage, fullName, setFullName, companyName, setCompanyName, 
   username, setUsername, phone, setPhone, email, setEmail, 
   password, setPassword, confirmPassword, setConfirmPassword, 
-  specialization, setSpecialization, errorMsg, loading, usernameTaken, attemptedSubmit 
+  specialization, setSpecialization, errorMsg, loading, usernameTaken, attemptedSubmit,
+  governorate, setGovernorate, city, setCity, streetDetails, setStreetDetails, egyptLocations 
 }) {
   const isSpecInvalid = showSpecialization && attemptedSubmit && specialization === '-';
+  const isGovInvalid = showAddress && attemptedSubmit && governorate === '-';
+  const isCityInvalid = showAddress && attemptedSubmit && city === '-';
+  const isStreetInvalid = showAddress && attemptedSubmit && !streetDetails.trim();
+
+  const availableCities = governorate !== '-' ? egyptLocations[governorate] || [] : [];
 
   return (
     <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-hidden" style={{ backgroundImage: `url(${bgImage})` }} dir="rtl">
@@ -463,6 +499,53 @@ function RegisterForm({
           )}
         </div>
 
+        {/* خانات العنوان تظهر للعملاء فقط */}
+        {showAddress && (
+          <>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-slate-700">المحافظة <span className="text-rose-500">(إجباري)</span></label>
+              <select 
+                value={governorate} 
+                onChange={(e) => { setGovernorate(e.target.value); setCity('-'); }}
+                className={`p-2.5 border rounded-xl text-sm outline-none bg-white ${isGovInvalid ? 'border-rose-500 bg-rose-50/30 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'}`}
+                required
+              >
+                <option value="-" disabled>-- اختر المحافظة --</option>
+                {Object.keys(egyptLocations).map((gov) => (
+                  <option key={gov} value={gov} className="text-slate-900">{gov}</option>
+                ))}
+              </select>
+              {isGovInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يجب اختيار المحافظة</p>}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-slate-700">المدينة / الحي <span className="text-rose-500">(إجباري)</span></label>
+              <select 
+                value={city} 
+                onChange={(e) => setCity(e.target.value)}
+                className={`p-2.5 border rounded-xl text-sm outline-none bg-white ${isCityInvalid ? 'border-rose-500 bg-rose-50/30 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'}`}
+                disabled={governorate === '-'}
+                required
+              >
+                <option value="-" disabled>-- اختر المدينة --</option>
+                {availableCities.map((c) => (
+                  <option key={c} value={c} className="text-slate-900">{c}</option>
+                ))}
+              </select>
+              {isCityInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يجب اختيار المدينة</p>}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-slate-700">تفاصيل الشارع ورقم المبنى/الشقة <span className="text-rose-500">(إجباري)</span></label>
+              <input 
+                type="text" placeholder="مثال: شارع النزهة، عمارة 14، الدور الثالث" value={streetDetails} onChange={(e) => setStreetDetails(e.target.value)}
+                className={`p-2.5 border rounded-xl text-sm outline-none bg-white ${isStreetInvalid ? 'border-rose-500 bg-rose-50/30' : 'border-slate-300 focus:border-purple-700'}`} required
+              />
+              {isStreetInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يرجى كتابة تفاصيل الشارع ورقم المبنى</p>}
+            </div>
+          </>
+        )}
+
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold text-slate-700">رقم التليفون</label>
           <input 
@@ -492,7 +575,7 @@ function RegisterForm({
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold text-slate-700">تأكيد كلمة المرور</label>
           <input 
-            type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+            type="password" placeholder="••••••••" value5={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
             className={`p-2.5 border rounded-xl text-sm outline-none bg-white ${confirmPassword && password !== confirmPassword ? 'border-rose-500 bg-rose-50/30' : 'border-slate-300 focus:border-purple-700'}`} required
           />
           {confirmPassword && password !== confirmPassword && (
