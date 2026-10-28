@@ -18,6 +18,7 @@ export default function AvailableOrders({ userData, onBack, onOrderAccepted }) {
   });
 
   const [activeChatOrder, setActiveChatOrder] = useState(null);
+  const [successModalOrder, setSuccessModalOrder] = useState(null); // نافذة تأكيد قبول الطلب
 
   const fetchAvailableOrders = async () => {
     if (!auth.currentUser) return;
@@ -82,16 +83,21 @@ export default function AvailableOrders({ userData, onBack, onOrderAccepted }) {
         read: false
       });
 
-      // لو الـ Parent فاتح دالة تتبع، ننقله ليها فوراً ومعاه بيانات الطلب المقبول
-      if (typeof onOrderAccepted === 'function') {
-        onOrderAccepted({ ...order, status: 'accepted' });
-      } else {
-        alert('تم قبول الطلب بنجاح!');
-        fetchAvailableOrders();
-      }
+      // إظهار نافذة التأكيد الاحترافية للمستخدم
+      setSuccessModalOrder(order);
+      
     } catch (error) {
       console.error("Error accepting order:", error);
       alert('حدث خطأ أثناء قبول الطلب.');
+    }
+  };
+
+  const handleProceedTracking = (order) => {
+    setSuccessModalOrder(null);
+    if (typeof onOrderAccepted === 'function') {
+      onOrderAccepted({ ...order, status: 'accepted' });
+    } else {
+      fetchAvailableOrders();
     }
   };
 
@@ -226,6 +232,28 @@ export default function AvailableOrders({ userData, onBack, onOrderAccepted }) {
           ))
         )}
       </main>
+
+      {/* نافذة تأكيد قبول الطلب الاحترافية */}
+      {successModalOrder && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl flex flex-col items-center text-center gap-4">
+            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-3xl shadow-inner">
+              ✓
+            </div>
+            <h3 className="text-base font-extrabold text-slate-900">تم قبول الطلب بنجاح!</h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              تم تحويل الطلب إلى قائمة طلباتك المقبولة، ونقلك تلقائياً إلى صفحة التتبع للبدء في تنفيذ الخدمة.
+            </p>
+            <button
+              type="button"
+              onClick={() => handleProceedTracking(successModalOrder)}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl transition shadow-md cursor-pointer"
+            >
+              الانتقال لتتبع الطلب ➔
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
