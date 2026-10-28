@@ -4,17 +4,17 @@ import { doc, setDoc, getDocs, collection, query, where } from 'firebase/firesto
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
 
-// قاعدة بيانات شاملة ومحدثة لكل قرى ومراكز مصر مع التركيز الكامل على شمولية قرى مركز الفيوم
+// قاعدة بيانات شاملة ومحدثة لكل قرى ومراكز مصر مع التصحيح الدقيق لـ "هوارة عدلان"
 const EGYPT_GOVERNORATES_DATA = {
   "الفيوم": {
     "مركز الفيوم": [
       "حي شرق مدينة الفيوم", "حي غرب مدينة الفيوم", "المنشية", "دار الرماد", "حفناوي",
       "قرية دمو", "قرية العامرية", "قرية اللاهون", "قرية دمشقين", "قرية هوارة المقطع",
-      "قرية هوارة أدلان", "قرية سيلا", "قرية دلاتون", "قرية منشأة لطف الله", "قرية كفر فلوكس",
+      "قرية هوارة عدلان", "قرية سيلا", "قرية دلاتون", "قرية منشأة لطف الله", "قرية كفر فلوكس",
       "قرية دملاش", "قرية الحامولي", "قرية زاوية الكرادسة", "قرية بني صالح", "قرية كفور النيل",
       "قرية قحافة", "قرية الشيخ فضل", "قرية العدوة", "قرية تلات", "قرية العزب",
-      "قرية دهمشة", "قرية بني صالح", "قرية منشأة عبد الله", "قرية كفور حفناوي", "قرية فانوس",
-      "قرية معصرة صاوي", "قرية سنهريس", "قرية كفرى المرابعين", "قرية هوارة", "عزبة حبيب", "عزبة جاد الله"
+      "قرية دهمشة", "قرية منشأة عبد الله", "قرية كفور حفناوي", "قرية فانوس",
+      "قرية معصرة صاوي", "قرية سنهريس", "قرية كفرى المرابعين", "عزبة حبيب", "عزبة جاد الله"
     ],
     "مركز إطسا": [
       "مدينة إطسا", "قرية مطول", "قرية قصر الباسل", "قرية منية الحيط", "قرية دفنو",
@@ -680,7 +680,7 @@ function RegisterForm({
                 value={villageOrDistrict} 
                 onChange={(e) => setVillageOrDistrict(e.target.value)}
                 disabled={cityOrCenter === '-'}
-                className="p-2.5 border border-slate-300 rounded-xl text-sm outline-none bg-white disabled:bg-slate-100 disabled:cursor-not-allowed focus:border-purple-700"
+                className="p-2.5 border rounded-xl text-sm outline-none bg-white disabled:bg-slate-100 disabled:cursor-not-allowed focus:border-purple-700"
               >
                 <option value="-">-- اختر القرية أو الحي (اختياري) --</option>
                 {availableVillages.map((village) => (
