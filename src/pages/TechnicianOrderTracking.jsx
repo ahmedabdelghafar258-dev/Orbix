@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, increment, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, increment, addDoc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
 import Chat from './Chat';
@@ -74,7 +74,7 @@ export default function TechnicianOrderTracking({ userData, onBack }) {
     }
   };
 
-  // إرسال تفاصيل قطع الغيار والصيانة والأسعار (عند الضغط على تم)
+  // إرسال تفاصيل قطع الغيار والصيانة والأسعار (مع إضافة 200 ج.م رسوم الزيارة الثابتة)
   const handleSavePartsAndService = async (e) => {
     e.preventDefault();
     if (!selectedOrderForParts) return;
@@ -83,21 +83,25 @@ export default function TechnicianOrderTracking({ userData, onBack }) {
       setSubmittingParts(true);
       const orderRef = doc(db, "orders", selectedOrderForParts.id);
       
+      const visitFee = 200; // رسوم الزيارة الثابتة الأساسية
       const pPrice = Number(partsPrice) || 0;
-      const sPrice = Number(servicePrice) || selectedOrderForParts.fixedPrice || selectedOrderForParts.agreedPrice || 200;
-      const totalAmount = sPrice + pPrice;
+      const sPrice = Number(servicePrice) || 0;
+      
+      // الإجمالي = رسوم الزيارة (200) + سعر الصيانة + ثمن قطع الغيار
+      const totalAmount = visitFee + sPrice + pPrice;
 
       await updateDoc(orderRef, {
         partsDescription: partsDescription || 'لا توجد قطع غيار',
         partsCost: pPrice,
         serviceDescription: serviceDescription || 'صيانة عامة',
         serviceCost: sPrice,
+        visitFee: visitFee,
         totalOrderAmount: totalAmount,
         workFinished: true,
         workFinishedAt: serverTimestamp()
       });
 
-      showAppMessage('تم حفظ تفاصيل الصيانة وقطع الغيار وإرسالها للعميل بنجاح.');
+      showAppMessage('تم حفظ تفاصيل الصيانة وقطع الغيار (شاملة رسوم الزيارة 200 ج.م) وإرسالها للعميل بنجاح.');
       setSelectedOrderForParts(null);
       setPartsDescription('');
       setPartsPrice('');
@@ -112,42 +116,95 @@ export default function TechnicianOrderTracking({ userData, onBack }) {
     }
   };
 
-  // إغلاق العملية نهائياً وحساب عمولة المنصة 2.5% وتحويل الصافي للمحفظة
+  // إغلاق العملية نهائياً وتطبيق نظام العمولات (2.5% من العميل + 2.5% من الفني = 5% للشركة)
   const handleCompleteOrder = async (order) => {
     try {
       const orderRef = doc(db, "orders", order.id);
-      const totalAmount = order.totalOrderAmount || order.fixedPrice || order.agreedPrice || 200;
+      const baseAmount = order.totalOrderAmount || 200;
 
-      // حساب عمولة المنصة (2.5%) وصافي أرباح الفني (97.5%)
-      const platformFee = totalAmount * 0.025;
-      const netTechnicianEarnings = totalAmount - platformFee;
+      // حساب العمولات بدقة
+      const clientCommission = baseAmount * 0.025; // 2.5% عمولة العميل
+      const providerCommission = baseAmount * 0.025; // 2.5% عمولة الفني
+      const totalCompanyEarnings = clientCommission + providerCommission; // 5% إجمالي أرباح الشركة
+      
+      const totalClientPayable = baseAmount + clientCommission; // ما يدفعه العميل إجمالاً
+      const netProviderPayout = baseAmount - providerCommission;   // ما يستحقه الفني صافياً
 
-      // 1. تحديث حالة الطلب إلى مكتمل مع حفظ تفاصيل العمولات
+      // 1. تحديث حالة الطلب إلى مكتمل وحفظ تفاصيل الحسابات المالية
       await updateDoc(orderRef, {
         status: 'completed',
-        platformFee: platformFee,
-        technicianEarnings: netTechnicianEarnings,
+        totalClientPaid: totalClientPayable,
+        providerPayout: netProviderPayout,
+        companyEarnings: totalCompanyEarnings,
+        technicianEarnings: netProviderPayout,
         completedAt: serverTimestamp()
       });
 
-      // 2. تحديث محفظة الفني تلقائياً بالصافي بعد خصم العمولة
-      const techUserRef = doc(db, "users", auth.currentUser.uid);
-      await updateDoc(techUserRef, {
-        walletBalance: increment(netTechnicianEarnings)
+      // 2. تسجيل أرباح الشركة في جدول company_earnings
+      await addDoc(collection(db, "company_earnings"), {
+        orderId: order.id,
+        clientId: order.clientId || "unknown_client",
+        providerId: auth.currentUser.uid,
+        baseOrderAmount: baseAmount,
+        clientCommission: clientCommission,
+        providerCommission: providerCommission,
+        netCompanyEarnings: totalCompanyEarnings,
+        totalClientPaid: totalClientPayable,
+        providerPayout: netProviderPayout,
+        status: "Completed",
+        createdAt: serverTimestamp()
       });
 
-      // 3. إرسال إشعار تفصيلي للفني بالعملية والمبلغ المضاف
+      // 3. تحديث محفظة الشركة المركزية (platform_finances/main_wallet)
+      const companyWalletRef = doc(db, "platform_finances", "main_wallet");
+      const walletSnap = await getDoc(companyWalletRef);
+      if (walletSnap.exists()) {
+        await updateDoc(companyWalletRef, {
+          totalBalance: increment(totalCompanyEarnings),
+          totalTransactionsCount: increment(1),
+          lastUpdated: serverTimestamp()
+        });
+      } else {
+        await setDoc(companyWalletRef, {
+          totalBalance: totalCompanyEarnings,
+          totalTransactionsCount: 1,
+          lastUpdated: serverTimestamp()
+        });
+      }
+
+      // 4. تحديث محفظة الفني (provider_wallets أو users) بالصافي المستحق
+      const providerWalletRef = doc(db, "provider_wallets", auth.currentUser.uid);
+      const pWalletSnap = await getDoc(providerWalletRef);
+      if (pWalletSnap.exists()) {
+        await updateDoc(providerWalletRef, {
+          pendingBalance: increment(netProviderPayout),
+          lastUpdated: serverTimestamp()
+        });
+      } else {
+        await setDoc(providerWalletRef, {
+          pendingBalance: netProviderPayout,
+          lastUpdated: serverTimestamp()
+        });
+      }
+
+      // تحديث رصيد الفني في بروفايله أيضاً للتوافق
+      const techUserRef = doc(db, "users", auth.currentUser.uid);
+      await updateDoc(techUserRef, {
+        walletBalance: increment(netProviderPayout)
+      }).catch(() => {});
+
+      // 5. إرسال إشعار تفصيلي للفني بالعملية والمبلغ المضاف
       await addDoc(collection(db, "notifications"), {
         userId: auth.currentUser.uid,
         title: "تم إغلاق العملية بنجاح",
-        message: `تم إغلاق الطلب بقيمة إجمالية ${totalAmount} ج.م (خصم عمولة المنصة 2.5% بقيمة ${platformFee.toFixed(2)} ج.م)، وتم إضافة صافي مبلغ ${netTechnicianEarnings.toFixed(2)} ج.م إلى محفظتك.`,
+        message: `تم إغلاق الطلب بقيمة أساسية ${baseAmount} ج.م، وتم إضافة صافي مبلغ ${netProviderPayout.toFixed(2)} ج.م إلى محفظتك (بعد خصم عمولة المنصة).`,
         type: "order_completed",
         orderId: order.id,
         createdAt: serverTimestamp(),
         read: false
       });
 
-      showAppMessage(`تم إغلاق العملية بنجاح! وتم إضافة صافي مبلغ ${netTechnicianEarnings.toFixed(2)} ج.م إلى محفظتك (بعد خصم 2.5% عمولة المنصة).`);
+      showAppMessage(`تم إغلاق العملية بنجاح! وتم إضافة صافي مبلغ ${netProviderPayout.toFixed(2)} ج.م إلى محفظتك.`);
       fetchTrackedOrders();
     } catch (error) {
       console.error("Error completing order:", error);
@@ -202,7 +259,7 @@ export default function TechnicianOrderTracking({ userData, onBack }) {
       {selectedOrderForParts && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <form onSubmit={handleSavePartsAndService} className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 flex flex-col gap-3.5 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2">تفاصيل الصيانة وقطع الغيار</h3>
+            <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2">تفاصيل الصيانة وقطع الغيار (رسوم الزيارة 200 ج.م ثابتة)</h3>
             
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-slate-700">قطع الغيار (إن وجدت)</label>
@@ -238,14 +295,19 @@ export default function TechnicianOrderTracking({ userData, onBack }) {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-700">سعر الصيانة (ج.م)</label>
+              <label className="text-xs font-bold text-slate-700">سعر أجر الصيانة (ج.م)</label>
               <input 
                 type="number" 
                 value={servicePrice}
                 onChange={(e) => setServicePrice(e.target.value)}
-                placeholder={selectedOrderForParts.fixedPrice || selectedOrderForParts.agreedPrice || "200"}
+                placeholder="0"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-600"
               />
+            </div>
+
+            <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-xl text-[11px] text-indigo-900 flex justify-between font-bold">
+              <span>رسوم الزيارة الثابتة:</span>
+              <span>200 ج.م</span>
             </div>
 
             <div className="flex items-center gap-2 mt-3">
@@ -254,7 +316,7 @@ export default function TechnicianOrderTracking({ userData, onBack }) {
                 disabled={submittingParts}
                 className="flex-1 py-3 bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-md"
               >
-                {submittingParts ? 'جاري الحفظ...' : 'تم ✓'}
+                {submittingParts ? 'جاري الحفظ...' : 'حفظ وإرسال للعميل ✓'}
               </button>
               <button
                 type="button"
@@ -278,14 +340,15 @@ export default function TechnicianOrderTracking({ userData, onBack }) {
             <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-3xl flex items-center justify-center text-3xl">📍</div>
             <h3 className="text-base font-extrabold text-slate-900">لا توجد طلبات قيد التنفيذ حالياً</h3>
             <p className="text-xs text-slate-500 max-w-xs mx-auto">
-              الطلبات التي تقبلها أو تتم الموافقة عليها في المفاوضات ستظهر هنا لمتابعتها.
+              الطلبات التي تقبلها أو تتم الموافقة عليها ستظهر هنا لمتابعتها.
             </p>
           </div>
         ) : (
           orders.map((order) => {
-            const basePrice = order.serviceCost || order.fixedPrice || order.agreedPrice || 200;
+            const visitFee = order.visitFee || 200;
             const partsCost = order.partsCost || 0;
-            const totalAmount = order.totalOrderAmount || (basePrice + partsCost);
+            const serviceCost = order.serviceCost || 0;
+            const totalAmount = order.totalOrderAmount || (visitFee + partsCost + serviceCost);
             const isClientPaid = order.clientPaid === true;
             const isWorkFinished = order.workFinished === true;
 
@@ -319,20 +382,31 @@ export default function TechnicianOrderTracking({ userData, onBack }) {
                   </button>
                 </div>
 
-                <div className="text-xs text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-1">
+                <div className="text-xs text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-1.5">
                   <p><span className="font-bold text-slate-800">الوصف:</span> {order.description || 'لا توجد تفاصيل'}</p>
                   {order.address && <p><span className="font-bold text-slate-800">العنوان:</span> 📍 {order.address}</p>}
-                  {order.partsDescription && (
-                    <div className="mt-2 pt-2 border-t border-slate-200 flex flex-col gap-0.5">
-                      <p><span className="font-bold text-slate-800">قطع الغيار:</span> {order.partsDescription} ({partsCost} ج.م)</p>
-                      <p><span className="font-bold text-slate-800">الصيانة:</span> {order.serviceDescription} ({basePrice} ج.م)</p>
-                      <p className="font-bold text-emerald-700 mt-1">الإجمالي الكلي: {totalAmount} ج.م</p>
+                  
+                  <div className="mt-2 pt-2 border-t border-slate-200 flex flex-col gap-1 text-[11px]">
+                    <div className="flex justify-between text-slate-600">
+                      <span>رسوم الزيارة الثابتة:</span>
+                      <span className="font-bold">{visitFee} ج.م</span>
                     </div>
-                  )}
+                    <div className="flex justify-between text-slate-600">
+                      <span>أجر الصيانة ({order.serviceDescription || 'عامة'}):</span>
+                      <span className="font-bold">{serviceCost} ج.م</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>قطع الغيار ({order.partsDescription || 'لا توجد'}):</span>
+                      <span className="font-bold">{partsCost} ج.م</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-700 font-extrabold text-xs pt-1 border-t border-slate-200">
+                      <span>الإجمالي الكلي:</span>
+                      <span>{totalAmount} ج.م</span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                  
                   <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-3.5 flex items-center gap-3 shadow-xs">
                     <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-sm font-bold shrink-0">✓</div>
                     <div>
@@ -397,9 +471,7 @@ export default function TechnicianOrderTracking({ userData, onBack }) {
                       </button>
                     )}
                   </div>
-
                 </div>
-
               </div>
             );
           })
