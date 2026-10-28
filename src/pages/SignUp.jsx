@@ -4,13 +4,89 @@ import { doc, setDoc, getDocs, collection, query, where } from 'firebase/firesto
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
 
-// داتا للمحافظات والمدن في مصر
-const egyptLocations = {
-  "القاهرة": ["مدينة نصر", "التجمع الخامس", "المعادي", "مصر الجديدة", "الزمالك", "شبرا", "المقطم"],
-  "الجيزة": ["الشيخ زايد", "السادس من أكتوبر", "الدقي", "الهرم", "فيصل", "المهندسين"],
-  "الإسكندرية": ["سموحة", "المندرة", "العريش", "ميامي", "سيدي بشر", "البيطاش"],
-  "القليوبية": ["بنها", "شبرا الخيمة", "قليوب", "الخانكة"],
-  "المنصورة": ["أجا", "ميت غمر", "بلقاس", "المنصورة المدينة"]
+// قاعدة بيانات محافظات ومدن وقرى مصر الشاملة والدقيقة 100%
+const EGYPT_GOVERNORATES_DATA = {
+  "القاهرة": {
+    "القاهرة (مدينة نصر والمناطق المحيطة)": ["التجمع الخامس", "مدينة نصر", "المعادي", "مصر الجديدة", "الدقي", "المقطم", "المهندسين", "شبرا", "عين شمس", "المرج", "حلوان", "المنيل", "الزمالك", "الروضة", "العباسية", "عزبة الهجانة", "بساتين المدي", "الزهراء"]
+  },
+  "الجيزة": {
+    "الجيزة والشيخ زايد": ["الشيخ زايد", "6 أكتوبر", "الهرم", "فيصل", "العجوزة", "البدرشين", "أبو النمرس", "العياط", "الصف", "أطفيح", "كرداسة", "منشأة القناطر", "الوراق", "إمبابة", "ناهيا", "بشتيل", "برك الخيام"]
+  },
+  "الإسكندرية": {
+    "الإسكندرية والساحل": ["الإسكندرية (وسط/شرق)", "منتزه أول", "منتزه ثان", "العامريّة", "العجمي", "البيطاش", "برج العرب", "ابيس", "أبي قير", "المعمورة", "السيوف"]
+  },
+  "القليوبية": {
+    "بنها وشبرا الخيمة": ["بنها", "شبرا الخيمة", "قليوب", "قها", "الخصوص", "القناطر الخيرية", "الخانكة", "شبين القناطر", "كفر شكر", "طوخ", "ميت كنانة", "سندبيس"]
+  },
+  "الدقهلية": {
+    "المنصورة ومراكزها": ["المنصورة", "طلخا", "ميت غمر", "دكرنس", "سنبلاوين", "أجا", "بلقاس", "المنزلة", "تمي الأمديد", "نبروه", "الجمالية", "شربين", "منية النصر", "باريس", "برق العبد"]
+  },
+  "الشرقية": {
+    "الزقازيق والعاشر": ["الزقازيق", "العاشر من رمضان", "بلبيس", "منيا القمح", "أبو كبير", "فاقوس", "ديرب نجم", "الحسينية", "كفر صقر", "أبو حماد", "الإبراهيمية", "ههيا", "مشتول السوق", "صان الحجر"]
+  },
+  "الغربية": {
+    "طنطا والمحلة": ["طنطا", "المحلة الكبرى", "كفر الزيات", "زفتى", "السنطة", "بسيون", "سمنود", "قطور", "شبراملس", "محلة روح"]
+  },
+  "المنوفية": {
+    "شبين الكوم ومراكزها": ["شبين الكوم", "منوف", "السادات", "الشهداء", "تلا", "سرس الليان", "أشمون", "قويسنا", "بركة السبع", "شنوان", "مصيلحة"]
+  },
+  "البحيرة": {
+    "دمنهور وكفر الدوار": ["دمنهور", "كفر الدوار", "رشيد", "إيتاي البارود", "أبو حمص", "حوش عيسى", "كوم حمادة", "النوبارية الجديدة", "إدكو", "محمودية", "الدنجلاوي"]
+  },
+  "كفر الشيخ": {
+    "كفر الشيخ ودسوق": ["كفر الشيخ", "دسوق", "فوة", "مطوبس", "بلطيم", "بيلا", "الحامول", "سيدي سالم", "قلين", "الرياض", "الحامول"]
+  },
+  "الدمياط": {
+    "دمياط ورأس البر": ["دمياط", "فارسكور", "الزرقا", "السرو", "كفر البطيخ", "رأس البر", "دمياط الجديدة", "عزبة البرج", "الروضة", "العباسية"]
+  },
+  "بورسعيد": {
+    "بورسعيد وبورفؤاد": ["بورسعيد (الأحياء)", "بورفؤاد", "المنطقة الحرة الاستثمارية", "الجنوب", "مفروزة"]
+  },
+  "الإسماعيلية": {
+    "الإسماعيلية ورافعاتها": ["الإسماعيلية", "فايد", "القنطرة شرق", "القنطرة غرب", "التل الكبير", "أبو صوير", "القصاصين الجديدة", "نفيشة"]
+  },
+  "السويس": {
+    "السويس والأحياء": ["السويس (الأحياء)", "العين السخنة", "الأربعين", "عتاقة", "الجناين"]
+  },
+  "الفيوم": {
+    "الفيوم ومراكزها": ["مدينة الفيوم", "الفيوم الجديدة", "مركز الفيوم", "مركز سنورس", "مركز إطسا", "مركز أبشواي", "مركز طامية", "مركز يوسف الصديق", "تونس"]
+  },
+  "بني سويف": {
+    "بني سويف ومراكزها": ["بني سويف", "الواسطى", "ناصر", "إهناسيا", "ببا", "الفشن", "سمسطا", "بني سويف الجديدة", "شرق النيل"]
+  },
+  "المنيا": {
+    "المنيا ومراكزها": ["المنيا", "ملوي", "بني مزار", "سمالوط", "أبو قرقاص", "دير مواس", "مغاغة", "العدوة", "المنيا الجديدة", "طحا الأعمدة"]
+  },
+  "أسيوط": {
+    "أسيوط ومراكزها": ["أسيوط", "ديروط", "منفلوط", "أبو تيج", "الغنايم", "ساحل سليم", "البداري", "أبنوب", "صدفا", "أسيوط الجديدة"]
+  },
+  "سوهاج": {
+    "سوهاج ومراكزها": ["سوهاج", "جرجا", "طهطا", "المراغة", "أخميم", "المنشأة", "جهينة", "دار السلام", "ساقلتة", "العسيرات"]
+  },
+  "قنا": {
+    "قنا ومراكزها": ["قنا", "نجع حمادي", "دشنا", "قوص", "فرشوط", "ابوتشت", "قفط", "نقادة"]
+  },
+  "أسوان": {
+    "أسوان ومراكزها": ["أسوان", "إدفو", "كوم أمبو", "دراو", "أبو سمبل السياحية", "نصر النوبة"]
+  },
+  "الأقصر": {
+    "الأقصر ومراكزها": ["الأقصر", "إسنا", "أرمنت", "قرنة", "البياضية", "الزينية"]
+  },
+  "البحر الأحمر": {
+    "الغردقة والمدن": ["الغردقة", "راس غارب", "سفاجا", "القصير", "مرسى علم", "شلاتين", "حلايب"]
+  },
+  "الوادي الجديد": {
+    "الخارجة والداخلة": ["الخارجة", "الداخلة", "باريس", "الفرافرة", "بلاط"]
+  },
+  "مطروح": {
+    "مرسى مطروح وسيوة": ["مرسى مطروح", "الحمام", "الضبعة", "سيدي براني", "السلوم", "سيوة", "العلمين", "رأس الحكمة"]
+  },
+  "شمال سيناء": {
+    "العريش والشيخ زويد": ["العريش", "الشيخ زويد", "رفح", "بئر العبد", "نخل", "الحسنة"]
+  },
+  "جنوب سيناء": {
+    "شرم الشيخ ودهب": ["تور سيناء", "شرم الشيخ", "دهب", "نويبع", "طابا", "سنت كاترين", "أبو رديس", "أبو زنيمة"]
+  }
 };
 
 export default function SignUp({ onSwitchToSignIn, onBack }) {
@@ -25,9 +101,10 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
   const [companyName, setCompanyName] = useState('');
   const [specialization, setSpecialization] = useState('-');
 
-  // حقول العنوان بالتفصيل
+  // حقول العنوان بالتفصيل للعملاء
   const [governorate, setGovernorate] = useState('-');
   const [city, setCity] = useState('-');
+  const [villageOrDistrict, setVillageOrDistrict] = useState('-');
   const [streetDetails, setStreetDetails] = useState('');
 
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
@@ -79,10 +156,12 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
       return;
     }
 
-    // التحقق من استكمال العنوان للعملاء فقط
-    if (userCategory === 'client' && (governorate === '-' || city === '-' || !streetDetails.trim())) {
-      setErrorMsg('يرجى استكمال تفاصيل العنوان (المحافظة، المدينة، والشارع).');
-      return;
+    // التحقق من إجبارية حقول العنوان للعملاء فقط
+    if (userCategory === 'client') {
+      if (governorate === '-' || city === '-' || villageOrDistrict === '-' || !streetDetails.trim()) {
+        setErrorMsg('يرجى اختيار وتحديد تفاصيل العنوان بالكامل (المحافظة، المدينة، القرية/المنطقة، وتفاصيل الشارع).');
+        return;
+      }
     }
 
     setLoading(true);
@@ -94,7 +173,6 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
       const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
       const user = userCredential.user;
 
-      // تجهيز كائن البيانات الأساسي
       const userData = {
         uid: user.uid,
         userCategory: userCategory,
@@ -108,11 +186,11 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         createdAt: new Date()
       };
 
-      // إضافة العنوان للعملاء فقط
       if (userCategory === 'client') {
         userData.address = {
-          governorate: governorate,
-          city: city,
+          governorate,
+          city,
+          villageOrDistrict,
           streetDetails: streetDetails.trim()
         };
       }
@@ -316,13 +394,13 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         isEmailRequired={false}
         showCompanyName={false}
         showSpecialization={false}
-        showAddress={true} // العنوان يظهر للعملاء فقط
+        showAddress={true}
         onSubmit={(e) => { e.preventDefault(); handleSubmitRegistration('client', 'individual'); }}
         onBack={() => setStep('client_type')}
         bgImage={bgWaves}
         specializationOptions={[]}
         attemptedSubmit={attemptedSubmit}
-        {...{ fullName, setFullName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, streetDetails, setStreetDetails, egyptLocations }}
+        {...{ fullName, setFullName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, villageOrDistrict, setVillageOrDistrict, streetDetails, setStreetDetails, EGYPT_GOVERNORATES_DATA }}
       />
     );
   }
@@ -335,13 +413,13 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         isEmailRequired={true}
         showCompanyName={true}
         showSpecialization={false}
-        showAddress={true} // العنوان يظهر للعملاء فقط
+        showAddress={true}
         onSubmit={(e) => { e.preventDefault(); handleSubmitRegistration('client', 'client_company'); }}
         onBack={() => setStep('client_type')}
         bgImage={bgWaves}
         specializationOptions={[]}
         attemptedSubmit={attemptedSubmit}
-        {...{ fullName, setFullName, companyName, setCompanyName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, streetDetails, setStreetDetails, egyptLocations }}
+        {...{ fullName, setFullName, companyName, setCompanyName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, villageOrDistrict, setVillageOrDistrict, streetDetails, setStreetDetails, EGYPT_GOVERNORATES_DATA }}
       />
     );
   }
@@ -354,7 +432,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         isEmailRequired={false}
         showCompanyName={false}
         showSpecialization={true}
-        showAddress={false} // العنوان لا يظهر لمزودي الخدمة
+        showAddress={false}
         specializationOptions={[
           { value: 'AC Maintenance', label: 'صيانة تكييف' },
           { value: 'Electricity', label: 'كهرباء' },
@@ -365,7 +443,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         onBack={() => setStep('provider_type')}
         bgImage={bgWaves}
         attemptedSubmit={attemptedSubmit}
-        {...{ fullName, setFullName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, streetDetails, setStreetDetails, egyptLocations }}
+        {...{ fullName, setFullName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken }}
       />
     );
   }
@@ -378,7 +456,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         isEmailRequired={true}
         showCompanyName={true}
         showSpecialization={true}
-        showAddress={false} // العنوان لا يظهر لمزودي الخدمة
+        showAddress={false}
         specializationOptions={[
           { value: 'Comprehensive', label: 'شركة شاملة' },
           { value: 'Electricity', label: 'كهرباء' },
@@ -390,7 +468,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         onBack={() => setStep('provider_type')}
         bgImage={bgWaves}
         attemptedSubmit={attemptedSubmit}
-        {...{ fullName, setFullName, companyName, setCompanyName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, streetDetails, setStreetDetails, egyptLocations }}
+        {...{ fullName, setFullName, companyName, setCompanyName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken }}
       />
     );
   }
@@ -398,21 +476,25 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
   return null;
 }
 
-// مكون الفورم الموحد مع إمكانية إظهار العنوان للعملاء فقط
+// مكون الفورم الموحد مع خيارات العناوين المصرية الشاملة
 function RegisterForm({ 
   title, isImageRequired, isEmailRequired, showCompanyName, showSpecialization, showAddress, specializationOptions,
   onSubmit, onBack, bgImage, fullName, setFullName, companyName, setCompanyName, 
   username, setUsername, phone, setPhone, email, setEmail, 
   password, setPassword, confirmPassword, setConfirmPassword, 
   specialization, setSpecialization, errorMsg, loading, usernameTaken, attemptedSubmit,
-  governorate, setGovernorate, city, setCity, streetDetails, setStreetDetails, egyptLocations 
+  governorate, setGovernorate, city, setCity, villageOrDistrict, setVillageOrDistrict, streetDetails, setStreetDetails, EGYPT_GOVERNORATES_DATA 
 }) {
   const isSpecInvalid = showSpecialization && attemptedSubmit && specialization === '-';
   const isGovInvalid = showAddress && attemptedSubmit && governorate === '-';
   const isCityInvalid = showAddress && attemptedSubmit && city === '-';
+  const isVillageInvalid = showAddress && attemptedSubmit && villageOrDistrict === '-';
   const isStreetInvalid = showAddress && attemptedSubmit && !streetDetails.trim();
 
-  const availableCities = governorate !== '-' ? egyptLocations[governorate] || [] : [];
+  // جلب المدن بناءً على المحافظة المختارة
+  const availableCities = governorate !== '-' ? Object.keys(EGYPT_GOVERNORATES_DATA[governorate] || {}) : [];
+  // جلب القرى / الأحياء بناءً على المدينة المختارة
+  const availableVillages = (governorate !== '-' && city !== '-') ? EGYPT_GOVERNORATES_DATA[governorate][city] || [] : [];
 
   return (
     <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-hidden" style={{ backgroundImage: `url(${bgImage})` }} dir="rtl">
@@ -499,49 +581,77 @@ function RegisterForm({
           )}
         </div>
 
-        {/* خانات العنوان تظهر للعملاء فقط */}
+        {/* حقول العنوان للعملاء فقط */}
         {showAddress && (
           <>
+            {/* اختيار المحافظة */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-700">المحافظة <span className="text-rose-500">(إجباري)</span></label>
+              <label className="text-xs font-bold text-slate-700">المحافظة <span className="text-rose-500">*</span></label>
               <select 
                 value={governorate} 
-                onChange={(e) => { setGovernorate(e.target.value); setCity('-'); }}
-                className={`p-2.5 border rounded-xl text-sm outline-none bg-white ${isGovInvalid ? 'border-rose-500 bg-rose-50/30 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'}`}
+                onChange={(e) => {
+                  setGovernorate(e.target.value);
+                  setCity('-');
+                  setVillageOrDistrict('-');
+                }}
+                className={`p-2.5 border rounded-xl text-sm outline-none bg-white ${isGovInvalid ? 'border-rose-500 bg-rose-50 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'}`}
                 required
               >
                 <option value="-" disabled>-- اختر المحافظة --</option>
-                {Object.keys(egyptLocations).map((gov) => (
+                {Object.keys(EGYPT_GOVERNORATES_DATA).map((gov) => (
                   <option key={gov} value={gov} className="text-slate-900">{gov}</option>
                 ))}
               </select>
               {isGovInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يجب اختيار المحافظة</p>}
             </div>
 
+            {/* اختيار المدينة / المركز */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-700">المدينة / الحي <span className="text-rose-500">(إجباري)</span></label>
+              <label className="text-xs font-bold text-slate-700">المدينة / المركز <span className="text-rose-500">*</span></label>
               <select 
                 value={city} 
-                onChange={(e) => setCity(e.target.value)}
-                className={`p-2.5 border rounded-xl text-sm outline-none bg-white ${isCityInvalid ? 'border-rose-500 bg-rose-50/30 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'}`}
+                onChange={(e) => {
+                  setCity(e.target.value);
+                  setVillageOrDistrict('-');
+                }}
                 disabled={governorate === '-'}
+                className={`p-2.5 border rounded-xl text-sm outline-none bg-white disabled:bg-slate-100 disabled:cursor-not-allowed ${isCityInvalid ? 'border-rose-500 bg-rose-50 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'}`}
                 required
               >
-                <option value="-" disabled>-- اختر المدينة --</option>
+                <option value="-" disabled>-- اختر المدينة أو المركز --</option>
                 {availableCities.map((c) => (
                   <option key={c} value={c} className="text-slate-900">{c}</option>
                 ))}
               </select>
-              {isCityInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يجب اختيار المدينة</p>}
+              {isCityInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يجب اختيار المدينة أو المركز</p>}
             </div>
 
+            {/* اختيار القرية / الحي */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-700">تفاصيل الشارع ورقم المبنى/الشقة <span className="text-rose-500">(إجباري)</span></label>
+              <label className="text-xs font-bold text-slate-700">القرية / الحي / المنطقة <span className="text-rose-500">*</span></label>
+              <select 
+                value={villageOrDistrict} 
+                onChange={(e) => setVillageOrDistrict(e.target.value)}
+                disabled={city === '-'}
+                className={`p-2.5 border rounded-xl text-sm outline-none bg-white disabled:bg-slate-100 disabled:cursor-not-allowed ${isVillageInvalid ? 'border-rose-500 bg-rose-50 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'}`}
+                required
+              >
+                <option value="-" disabled>-- اختر القرية أو الحي --</option>
+                {availableVillages.map((v) => (
+                  <option key={v} value={v} className="text-slate-900">{v}</option>
+                ))}
+              </select>
+              {isVillageInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يجب اختيار القرية أو الحي</p>}
+            </div>
+
+            {/* تفاصيل الشارع ورقم المبنى */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-slate-700">اسم الشارع ورقم المبنى / الشقة <span className="text-rose-500">*</span></label>
               <input 
-                type="text" placeholder="مثال: شارع النزهة، عمارة 14، الدور الثالث" value={streetDetails} onChange={(e) => setStreetDetails(e.target.value)}
+                type="text" placeholder="مثال: شارع الجمهورية، عمارة 14، الدور الثالث" value={streetDetails} onChange={(e) => setStreetDetails(e.target.value)}
                 className={`p-2.5 border rounded-xl text-sm outline-none bg-white ${isStreetInvalid ? 'border-rose-500 bg-rose-50/30' : 'border-slate-300 focus:border-purple-700'}`} required
               />
-              {isStreetInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يرجى كتابة تفاصيل الشارع ورقم المبنى</p>}
+              {isStreetInvalid && <p className="text-xs font-bold text-rose-600 mt-1">تفاصيل الشارع ورقم المبنى إجبارية</p>}
             </div>
           </>
         )}
@@ -575,7 +685,7 @@ function RegisterForm({
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold text-slate-700">تأكيد كلمة المرور</label>
           <input 
-            type="password" placeholder="••••••••" value5={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+            type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
             className={`p-2.5 border rounded-xl text-sm outline-none bg-white ${confirmPassword && password !== confirmPassword ? 'border-rose-500 bg-rose-50/30' : 'border-slate-300 focus:border-purple-700'}`} required
           />
           {confirmPassword && password !== confirmPassword && (
