@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, addDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
@@ -92,9 +92,10 @@ const EGYPT_GOVERNORATES_DATA = {
 export default function NewOrder({ userData, onBack }) {
   const [currentStep, setCurrentStep] = useState(1);
   
-  const [selectedGov, setSelectedGov] = useState('-');
-  const [selectedCity, setSelectedCity] = useState('-');
-  const [streetDetails, setStreetDetails] = useState('');
+  // تعبئة العنوان أوتوماتيك من بيانات العميل المسجلة (userData)
+  const [selectedGov, setSelectedGov] = useState(userData?.address?.governorate || '-');
+  const [selectedCity, setSelectedCity] = useState(userData?.address?.city || '-');
+  const [streetDetails, setStreetDetails] = useState(userData?.address?.streetDetails || '');
 
   const [serviceCategory, setServiceCategory] = useState('-');
   const [sparePartsBy, setSparePartsBy] = useState('-');
@@ -103,6 +104,15 @@ export default function NewOrder({ userData, onBack }) {
   const [attemptedNext, setAttemptedNext] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // تحديث الحقول لو بيانات الـ userData اتأخرت في التحميل
+  useEffect(() => {
+    if (userData?.address) {
+      if (userData.address.governorate) setSelectedGov(userData.address.governorate);
+      if (userData.address.city) setSelectedCity(userData.address.city);
+      if (userData.address.streetDetails) setStreetDetails(userData.address.streetDetails);
+    }
+  }, [userData]);
 
   const availableCities = selectedGov !== '-' ? EGYPT_GOVERNORATES_DATA[selectedGov] || [] : [];
 
@@ -132,7 +142,7 @@ export default function NewOrder({ userData, onBack }) {
   const handleFinalSubmit = async () => {
     if (!auth.currentUser) return;
 
-    const fullAddress = `${selectedGov} - ${selectedCity} - ${streetDetails}`;
+    const fullAddress = `${selectedGov}\n${selectedCity}\n${streetDetails}`;
 
     try {
       setSubmitting(true);
@@ -166,7 +176,7 @@ export default function NewOrder({ userData, onBack }) {
         description,
         visitFee: 200,
         techId: assignedTechId,
-        status: 'pending', // تم ضبطها لتطابق استعلام الفني
+        status: 'pending',
         createdAt: serverTimestamp()
       });
 
@@ -211,7 +221,7 @@ export default function NewOrder({ userData, onBack }) {
 
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-extrabold text-slate-900 mb-1">طلب خدمة صيانة جديدة</h2>
-          <p className="text-xs text-slate-500">اختر المحافظة والمدينة، واكتب عنوانك بالتفصيل (القرية والشارع والبيت)</p>
+          <p className="text-xs text-slate-500">تم تحديد عنوانك المسجل في إعدادات الحساب أوتوماتيكياً</p>
         </div>
 
         {success ? (
@@ -233,7 +243,7 @@ export default function NewOrder({ userData, onBack }) {
                 }`}>
                   {currentStep > 1 ? '✓' : '1'}
                 </div>
-                <span className={`text-[11px] mt-1.5 transition-all ${currentStep === 1 ? 'font-extrabold text-purple-900' : 'font-bold text-slate-600'}`}>الموقع والتفاصيل</span>
+                <span className={`text-[11px] mt-1.5 transition-all ${currentStep === 1 ? 'font-extrabold text-purple-900' : 'font-bold text-slate-600'}`}>العنوان والتفاصيل</span>
               </div>
 
               <div className="relative z-10 flex flex-col items-center">
@@ -261,6 +271,14 @@ export default function NewOrder({ userData, onBack }) {
               {currentStep === 1 && (
                 <div className="flex flex-col gap-4 animate-fadeIn">
                   
+                  {/* صندوق توضيحي للعنوان المسجل */}
+                  <div className="p-3 bg-purple-50 border border-purple-100 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] font-bold text-purple-900 block mb-0.5">📍 العنوان الحالي (من الإعدادات):</span>
+                      <span className="text-xs text-slate-700 font-medium">{fullAddressPreview || 'جاري تحميل العنوان...'}</span>
+                    </div>
+                  </div>
+
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-bold text-slate-700">المحافظة <span className="text-rose-500">*</span></label>
                     <select 
