@@ -7,7 +7,9 @@ import {
   orderBy,
   serverTimestamp,
   updateDoc,
-  doc
+  doc,
+  setDoc,
+  getDoc
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
@@ -24,21 +26,93 @@ export default function Chat({
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   
-  // حالة الاتصال الحقيقية بالإنترنت
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  // حالة اتصال الطرف الآخر الفعلي داخل التطبيق
+  const [isRecipientActive, setIsRecipientActive] = useState(false);
 
+  // 1. تحديث نشاط المستخدم الحالي (Heartbeat) كل 10 ثوانٍ طالما هو فاتح شاشة الشات
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    if (!auth.currentUser || !recipientId) return;
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    const userStatusRef = doc(db, 'users_presence', auth.currentUser.uid);
+
+    // تحديث فوري عند فتح الشات
+    const updateActiveStatus = async () => {
+      try {
+        await setDoc(userStatusRef, {
+          lastActive: serverTimestamp(),
+          isOnline: true
+        }, { merge: true });
+      } catch (err) {
+        console.error("Error updating presence:", err);
+      }
+    };
+
+    updateActiveStatus();
+
+    // تحديث دوري كل 10 ثوانٍ لضمان بقاء الحالة خضراء طالما التطبيق مفتوح
+    const interval = setInterval(() => {
+      updateActiveStatus();
+    }, 10000);
+
+    // عند خروج المستخدم من الشات، نلغي حالته النشطة فوراً
+    return () => {
+      clearInterval(interval);
+      setDoc(userStatusRef, {
+        lastActive: null,
+        isOnline: false
+      }, { merge: true }).catch(() => {});
+    };
+  }, [recipientId]);
+
+  // 2. مراقبة حالة نشاط الطرف الآخر (recipientId) لحظياً
+  useEffect(() => {
+    if (!recipientId) return;
+
+    const recipientStatusRef = doc(db, 'users_presence', recipientId);
+
+    const unsubscribePresence = onSnapshot(recipientStatusRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const data = docSnapshot.data();
+        if (data && data.lastActive && data.isOnline) {
+          // التحقق من أن آخر نشاط كان خلال الـ 20 ثانية الأخيرة (يعني فاتح الأب فعلاً)
+          const lastActiveTime = data.lastActive.toMillis ? data.lastActive.toMillis() : new Date(data.lastActive).getTime();
+          const now = Date.now();
+          
+          if (now - lastActiveTime < 25000) {
+            setIsRecipientActive(true);
+          } else {
+            setIsRecipientActive(false);
+          }
+        } else {
+          setIsRecipientActive(false);
+        }
+      } else {
+        setIsRecipientActive(false);
+      }
+    });
+
+    // فحص دوري كل 5 ثوانٍ لتحديث الحالة لو الطرف الآخر قفل فجأة بدون ما يضغط زر الخروج
+    const checkInterval = setInterval(() => {
+      onSnapshot(recipientStatusRef, (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          if (data && data.lastActive && data.isOnline) {
+            const lastActiveTime = data.lastActive.toMillis ? data.lastActive.toMillis() : new Date(data.lastActive).getTime();
+            if (Date.now() - lastActiveTime < 25000) {
+              setIsRecipientActive(true);
+              return;
+            }
+          }
+        }
+        setIsRecipientActive(false);
+      });
+    }, 5000);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      unsubscribePresence();
+      clearInterval(checkInterval);
     };
-  }, []);
+  }, [recipientId]);
 
   // جلب الرسائل وتحديث حالة القراءة (read: true) فور فتح المحادثة لتختفي العلامة الحمراء
   useEffect(() => {
@@ -136,13 +210,13 @@ export default function Chat({
               <h3 className="text-sm font-extrabold text-slate-900">
                 {recipientName || 'مستخدم Orbix'}
               </h3>
-              {isOnline ? (
+              {isRecipientActive ? (
                 <span className="text-[10px] text-emerald-600 font-bold block">
                   متصل الآن 🟢
                 </span>
               ) : (
                 <span className="text-[10px] text-slate-400 font-bold block">
-                  غير متصل بالإنترنت
+                  غير متصل
                 </span>
               )}
             </div>
