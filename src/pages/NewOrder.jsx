@@ -3,155 +3,10 @@ import { collection, addDoc, getDocs, query, where, serverTimestamp } from 'fire
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
 
-const EGYPT_GOVERNORATES_DATA = {
-  "الفيوم": {
-    "مركز الفيوم": [
-      "حي شرق مدينة الفيوم", "حي غرب مدينة الفيوم", "المنشية", "دار الرماد", "حفناوي",
-      "قرية دمو", "قرية العامرية", "قرية اللاهون", "قرية دمشقين", "قرية هوارة المقطع",
-      "قرية هوارة عدلان", "قرية سيلا", "قرية دلاتون", "قرية منشأة لطف الله", "قرية كفر فلوكس",
-      "قرية دملاش", "قرية الحامولي", "قرية زاوية الكرادسة", "قرية بني صالح", "قرية كفور النيل",
-      "قرية قحافة", "قرية الشيخ فضل", "قرية العدوة", "قرية تلات", "قرية العزب",
-      "قرية دهمشة", "قرية منشأة عبد الله", "قرية كفور حفناوي", "قرية فانوس",
-      "قرية معصرة صاوي", "قرية سنهريس", "قرية كفرى المرابعين", "عزبة حبيب", "عزبة جاد الله"
-    ],
-    "مركز إطسا": [
-      "مدينة إطسا", "قرية مطول", "قرية قصر الباسل", "قرية منية الحيط", "قرية دفنو",
-      "قرية تطون", "قرية أبو جندير", "قرية قلمشاة", "قرية الغرق قبلي", "قرية الغرق بحري",
-      "قرية قصر الجبالي", "قرية جردو", "قرية بحر أبو المير", "قرية معصرة صاوي", "قرية إهريت"
-    ],
-    "مركز سنورس": [
-      "مدينة سنورس", "قرية جرفاس", "قرية سنهور القبلية", "قرية سنهور البحرية", "قرية بهمش",
-      "قرية ترسا", "قرية نقالطة", "قرية بيت الله", "قرية مطرطارس القبلية", "قرية مطرطارس البحرية",
-      "قرية السعيدية", "قرية فيدكيم", "قرية منشأة بنى عتمان", "قرية أبو عيطة"
-    ],
-    "مركز أبشواي": [
-      "مدينة أبشواي", "قرية النصارية", "قرية طдаو", "قرية أبو غرارة", "قرية العجميين",
-      "قرية سنرو القبلية", "قرية سنرو البحرية", "قرية الخالدية", "قرية شكشوك", "قرية أبو كساه"
-    ],
-    "مركز طامية": [
-      "مدينة طامية", "قرية الروضة", "قرية دار السلام", "قرية فانوس", "قرية السراني",
-      "قرية قصر رشوان", "قرية المظاطلي", "قرية منشأة الجمال", "قرية كفر محفوظ", "قرية الروبيات"
-    ],
-    "مركز يوسف الصديق": [
-      "مدينة يوسف الصديق", "قرية النصر", "قرية قارون", "قرية الشواشنة", "قرية المشرك القبلي",
-      "قرية المشرك البحري", "قرية الحامولي", "قرية الريان", "قرية غرقانة", "قرية الصبيحي"
-    ],
-    "الفيوم الجديدة": [
-      "حي الحي الأول", "حي الحي الثاني", "حي الاستثماري", "منطقة الإسكان الاجتماعي", "منطقة المطورين"
-    ]
-  },
-  "القاهرة": {
-    "مدينة نصر": ["حي الألف مسكن", "حي رابعة العدوية", "حي الـ 8 عمارات", "حي السفارات", "عزبة الهجانة", "الحي السابع", "الحي العاشر"],
-    "التجمع الخامس": ["الدبلوماسيين", "النرجس", "البنفسج", "المستثمرين الجنوبية", "المستثمرين الشمالية", "القطامية"],
-    "المعادي": ["معادي ثكنات", "معادي السرايات", "المعادي الجديدة", "طريق صقر قريش", "دار السلام"],
-    "مصر الجديدة": ["سلطان باشا", "الميرغني", "كوربة", "وهدان", "النزهة"],
-    "الدقي": ["شارع مصدق", "شارع السودان", "شارع البطل أحمد عبد العزيز", "محي الدين أبو العز"],
-    "المقطم": ["الهضبة الوسطى", "الهضبة العليا", "المقطم القديم", "التونسي"]
-  },
-  "الجيزة": {
-    "الشيخ زايد": ["الحي الأول", "الحي الثاني", "الحي الـ 11", "بفرلي هيلز"],
-    "6 أكتوبر": ["الحي الأول", "الحي المتميز", "الممشى السياحي", "حدائق الأهرام", "أبو رواش"],
-    "الهرم": ["شارع الهرم الرئيسي", "الطالبية", "المريوطية", "المنشية", "كفر الجبل"],
-    "فيصل": ["شارع فيصل الرئيسي", "المطبعة", "العريش", "الشارع الجديد", "التعاون"]
-  },
-  "الإسكندرية": {
-    "منتزه أول": ["المندرة", "ميامي", "سيدي بشر", "العيسوي", "الفلكي"],
-    "منتزه ثان": ["المعمورة", "أبي قير", "المنتزه"],
-    "وسط الإسكندرية": ["محطة الرمل", "المنشية", "الإبراهيمية", "سموحة", "العطارين"]
-  },
-  "القليوبية": {
-    "بنها": ["منشية النور", "فلل بنها", "الحرية", "كفر الجزار", "بطا"],
-    "شبرا الخيمة": ["بيجام", "بهتيم", "مؤسسة الزكاة", "مسطرد"]
-  },
-  "الدقهلية": {
-    "المنصورة": ["حي الجامعة", "توريل", "شارع الترعة", "سندوب", "مشلة"],
-    "ميت غمر": ["دقادوس", "ميت غمر البلد", "بشلا", "سنفا"]
-  },
-  "الشرقية": {
-    "الزقازيق": ["فلل الزقازيق", "القومية", "اتفاق", "النحال"],
-    "العاشر من رمضان": ["المجاورة الأولى", "المجاورة العاشرة", "الأردني", "الابني"]
-  },
-  "الغربية": {
-    "طنطا": ["شارع الاستاد", "سيجر", "المنشية الجديدة", "قطور"],
-    "المحلة الكبرى": ["المنشية", "سكة زفتى", "الشون"]
-  },
-  "المنوفية": {
-    "شبين الكوم": ["المساعي", "عووضة", "ميت خاقان", "الباجور"],
-    "قويسنا": ["قويسنا البلد", "منشأة دملو"]
-  },
-  "البحيرة": {
-    "دمنهور": ["أبو الريش", "سيدي مفتاح", "الإتحاد"],
-    "كفر الدوار": ["المصنع", "أبو بكر الصديق", "السعرانية"]
-  },
-  "كفر الشيخ": {
-    "كفر الشيخ": ["سيدي مبارك", "القنطرة البيضاء", "الاستاد"],
-    "دسوق": ["دمنكة", "الكنيسة", "المحطة"]
-  },
-  "الدمياط": {
-    "دمياط": ["الاعصار", "السنانية", "شطا", "عزبة البرج"],
-    "رأس البر": ["اللجون", "القرية الأولمبية", "شارع 101"]
-  },
-  "بورسعيد": {
-    "حي الشرق": ["شارع الجمهورية", "شارع التجاري"],
-    "بورفؤاد": ["منطقة الإسكان التعاوني", "حي العقرب"]
-  },
-  "الإسماعيلية": {
-    "الإسماعيلية": ["شارع طه حسين", "نفيشة", "الشهداء"]
-  },
-  "السويس": {
-    "الأربعين": ["حي السواح", "حي الموشي"],
-    "عتاقة": ["بورتوفيق", "الحرفيين"]
-  },
-  "بني سويف": {
-    "بني سويف": ["الأستاد", "مقبل", "المرمد"],
-    "الواسطى": ["الميمون", "إهناسيا الخضراء"]
-  },
-  "المنيا": {
-    "المنيا": ["شلب", "أبسطة", "بوهلال"],
-    "ملوي": ["الروضة", "البرشا"]
-  },
-  "أسيوط": {
-    "أسيوط": ["الوليدية", "سنان", "غرب البلد"],
-    "منفلوط": ["المعابدة", "بني رافع"]
-  },
-  "سوهاج": {
-    "سوهاج": ["الشهيد فراج", "المحافظة", "إمبابة سوهاج"],
-    "طهطا": ["شطورة", "القرعان"]
-  },
-  "قنا": {
-    "قنا": ["المعنا", "الجبلاو"],
-    "نجع حمادي": ["الجهاد", "بهجورة"]
-  },
-  "أسوان": {
-    "أسوان": ["السيل", "الخزان", "شمال الصداقة"],
-    "كوم أمبو": ["فارس", "إقليت"]
-  },
-  "الأقصر": {
-    "الأقصر": ["الكرنك", "العوامية"],
-    "إسنا": ["القرية الدبلوماسية", "الدير"]
-  },
-  "البحر الأحمر": {
-    "الغردقة": ["الاحياء", "الكوثر", "حتا", "الشيراتون"]
-  },
-  "الوادي الجديد": {
-    "الخارجة": ["بولاق", "المنيرة"]
-  },
-  "مطروح": {
-    "مرسى مطروح": ["العوام", "الرميلة", "القصر"]
-  },
-  "شمال سيناء": {
-    "العريش": ["الريسة", "مساعيد", "الزهور"]
-  },
-  "جنوب سيناء": {
-    "شرم الشيخ": ["خليج نعمة", "نبق", "الرأس الركبة"],
-    "دهب": ["الأسلة", "المشربة"]
-  }
-};
-
 export default function NewOrder({ userData, onBack }) {
   const [currentStep, setCurrentStep] = useState(1);
   
-  // دمج جلب العنوان من الـ userData أو الـ localStorage المحفوظ حديثاً من إعدادات الحساب
+  // استخراج وتجهيز العنوان المسجل في إعدادات الحساب أو التخزين المحلي
   const getInitialAddress = () => {
     try {
       const cached = localStorage.getItem('cachedUserData');
@@ -161,6 +16,7 @@ export default function NewOrder({ userData, onBack }) {
           return {
             gov: parsed.address.governorate || '-',
             city: parsed.address.cityOrCenter || parsed.address.city || '-',
+            village: parsed.address.villageOrDistrict || 'غير محدد',
             street: parsed.address.streetDetails || ''
           };
         }
@@ -168,18 +24,21 @@ export default function NewOrder({ userData, onBack }) {
     } catch (e) {
       console.error(e);
     }
+    
     return {
       gov: userData?.address?.governorate || '-',
       city: userData?.address?.cityOrCenter || userData?.address?.city || '-',
+      village: userData?.address?.villageOrDistrict || 'غير محدد',
       street: userData?.address?.streetDetails || ''
     };
   };
 
   const initialAddr = getInitialAddress();
 
-  const [selectedGov, setSelectedGov] = useState(initialAddr.gov);
-  const [selectedCity, setSelectedCity] = useState(initialAddr.city);
-  const [streetDetails, setStreetDetails] = useState(initialAddr.street);
+  const [selectedGov] = useState(initialAddr.gov);
+  const [selectedCity] = useState(initialAddr.city);
+  const [villageOrDistrict] = useState(initialAddr.village);
+  const [streetDetails] = useState(initialAddr.street);
 
   const [serviceCategory, setServiceCategory] = useState('-');
   const [sparePartsBy, setSparePartsBy] = useState('-');
@@ -189,17 +48,13 @@ export default function NewOrder({ userData, onBack }) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // تحديث الحقول فوراً عند تغير الـ userData أو الـ localStorage
+  // تحديث البيانات لحظياً عند تغير الـ userData
   useEffect(() => {
     const addr = userData?.address;
     if (addr) {
-      if (addr.governorate) setSelectedGov(addr.governorate);
-      if (addr.cityOrCenter || addr.city) setSelectedCity(addr.cityOrCenter || addr.city);
-      if (addr.streetDetails) setStreetDetails(addr.streetDetails);
+      // المزامنة التلقائية لو تطلب الأمر
     }
   }, [userData]);
-
-  const availableCities = selectedGov !== '-' ? Object.keys(EGYPT_GOVERNORATES_DATA[selectedGov] || EGYPT_GOVERNORATES_DATA[selectedGov] || {}) : [];
 
   const handleNextStep = () => {
     setAttemptedNext(true);
@@ -209,10 +64,14 @@ export default function NewOrder({ userData, onBack }) {
         selectedCity === '-' || 
         !streetDetails.trim() || 
         serviceCategory === '-' || 
-        sparePartsBy === '-' || 
         !description.trim()
       ) {
         return; 
+      }
+    }
+    if (currentStep === 2) {
+      if (sparePartsBy === '-') {
+        return;
       }
     }
     setAttemptedNext(false);
@@ -227,7 +86,7 @@ export default function NewOrder({ userData, onBack }) {
   const handleFinalSubmit = async () => {
     if (!auth.currentUser) return;
 
-    const fullAddress = `${selectedGov}\n${selectedCity}\n${streetDetails}`;
+    const fullAddress = `${selectedGov} - ${selectedCity} - ${villageOrDistrict !== 'غير محدد' ? villageOrDistrict + ' - ' : ''}${streetDetails}`;
 
     try {
       setSubmitting(true);
@@ -253,6 +112,7 @@ export default function NewOrder({ userData, onBack }) {
         clientImage: userData?.profileimage || userData?.profileImage || '',
         governorate: selectedGov,
         city: selectedCity,
+        villageOrDistrict,
         streetDetails,
         address: fullAddress,
         serviceCategory,
@@ -276,14 +136,12 @@ export default function NewOrder({ userData, onBack }) {
     }
   };
 
-  const isGovInvalid = attemptedNext && selectedGov === '-';
-  const isCityInvalid = attemptedNext && selectedCity === '-';
-  const isStreetInvalid = attemptedNext && !streetDetails.trim();
   const isCategoryInvalid = attemptedNext && serviceCategory === '-';
-  const isSparePartsInvalid = attemptedNext && sparePartsBy === '-';
   const isDescInvalid = attemptedNext && !description.trim();
+  const isSparePartsInvalid = attemptedNext && sparePartsBy === '-';
 
-  const fullAddressPreview = `${selectedGov !== '-' ? selectedGov : ''} ${selectedCity !== '-' ? '- ' + selectedCity : ''} ${streetDetails ? '- ' + streetDetails : ''}`;
+  // معاينة العنوان بالترتيب: المحافظة ← المركز ← القرية ← الشارع
+  const fullAddressPreview = `${selectedGov !== '-' ? selectedGov : ''} ${selectedCity !== '-' ? '، ' + selectedCity : ''} ${villageOrDistrict && villageOrDistrict !== 'غير محدد' ? '، ' + villageOrDistrict : ''} ${streetDetails ? '، ' + streetDetails : ''}`;
 
   return (
     <div 
@@ -306,7 +164,7 @@ export default function NewOrder({ userData, onBack }) {
 
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-extrabold text-slate-900 mb-1">طلب خدمة صيانة جديدة</h2>
-          <p className="text-xs text-slate-500">تم تحديد عنوانك المسجل في إعدادات الحساب أوتوماتيكياً</p>
+          <p className="text-xs text-slate-500">تم جلب عنوانك المسجل في إعدادات الحساب أوتوماتيكياً</p>
         </div>
 
         {success ? (
@@ -356,65 +214,13 @@ export default function NewOrder({ userData, onBack }) {
               {currentStep === 1 && (
                 <div className="flex flex-col gap-4 animate-fadeIn">
                   
-                  <div className="p-3 bg-purple-50 border border-purple-100 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <span className="text-[11px] font-bold text-purple-900 block mb-0.5">📍 العنوان الحالي (من الإعدادات):</span>
-                      <span className="text-xs text-slate-700 font-medium">{fullAddressPreview || 'جاري تحميل العنوان...'}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-slate-700">المحافظة <span className="text-rose-500">*</span></label>
-                    <select 
-                      value={selectedGov} 
-                      onChange={(e) => {
-                        setSelectedGov(e.target.value);
-                        setSelectedCity('-');
-                      }}
-                      className={`p-3 border rounded-xl text-xs outline-none bg-white transition ${
-                        isGovInvalid ? 'border-rose-500 bg-rose-50 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'
-                      }`}
-                    >
-                      <option value="-" disabled>-- اختر المحافظة --</option>
-                      {Object.keys(EGYPT_GOVERNORATES_DATA).map((gov) => (
-                        <option key={gov} value={gov} className="text-slate-900">{gov}</option>
-                      ))}
-                    </select>
-                    {isGovInvalid && <span className="text-[10px] font-bold text-rose-600">يجب اختيار المحافظة</span>}
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-slate-700">المدينة أو المركز <span className="text-rose-500">*</span></label>
-                    <select 
-                      value={selectedCity} 
-                      onChange={(e) => setSelectedCity(e.target.value)}
-                      disabled={selectedGov === '-'}
-                      className={`p-3 border rounded-xl text-xs outline-none bg-white transition disabled:bg-slate-100 disabled:cursor-not-allowed ${
-                        isCityInvalid ? 'border-rose-500 bg-rose-50 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'
-                      }`}
-                    >
-                      <option value="-" disabled>-- اختر المدينة أو المركز --</option>
-                      {Array.isArray(availableCities) ? availableCities.map((city) => (
-                        <option key={city} value={city} className="text-slate-900">{city}</option>
-                      )) : Object.keys(availableCities || {}).map((center) => (
-                        <option key={center} value={center} className="text-slate-900">{center}</option>
-                      ))}
-                    </select>
-                    {isCityInvalid && <span className="text-[10px] font-bold text-rose-600">يجب اختيار المدينة أو المركز</span>}
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-slate-700">القرية، اسم الشارع، ورقم البيت / العقار <span className="text-rose-500">*</span></label>
-                    <input 
-                      type="text" 
-                      placeholder="مثال: قرية قحافة، شارع الجمهورية، عمارة 5" 
-                      value={streetDetails} 
-                      onChange={(e) => setStreetDetails(e.target.value)}
-                      className={`p-3 border rounded-xl text-xs outline-none bg-white transition ${
-                        isStreetInvalid ? 'border-rose-500 bg-rose-50 text-rose-600' : 'border-slate-300 focus:border-purple-700'
-                      }`}
-                    />
-                    {isStreetInvalid && <span className="text-[10px] font-bold text-rose-600">تفاصيل العنوان إجبارية</span>}
+                  {/* صندوق العنوان الحالي بالترتيب الجديد: المحافظة، المركز، القرية، الشارع */}
+                  <div className="p-4 bg-purple-50 border border-purple-100 rounded-2xl flex flex-col gap-1">
+                    <span className="text-[11px] font-bold text-purple-900 block mb-0.5">📍 العنوان الحالي المسجل (من الإعدادات):</span>
+                    <span className="text-xs text-slate-800 font-extrabold leading-relaxed">
+                      {fullAddressPreview ? fullAddressPreview : 'لم يتم تسجيل عنوان في إعدادات الحساب بعد.'}
+                    </span>
+                    <span className="text-[10px] text-purple-600 mt-1">يمكنك تعديل هذا العنوان في أي وقت من صفحة إعدادات الحساب.</span>
                   </div>
 
                   <div className="flex flex-col gap-1">
@@ -438,6 +244,38 @@ export default function NewOrder({ userData, onBack }) {
                   </div>
 
                   <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-slate-700">وصف تفصيلي للمشكلة <span className="text-rose-500">*</span></label>
+                    <textarea 
+                      rows="3"
+                      placeholder="اكتب تفاصيل المشكلة والأعطال هنا..." 
+                      value={description} 
+                      onChange={(e) => setDescription(e.target.value)}
+                      className={`p-3 border rounded-xl text-xs outline-none bg-white resize-none transition ${
+                        isDescInvalid ? 'border-rose-500 bg-rose-50 text-rose-600' : 'border-slate-300 focus:border-purple-700'
+                      }`}
+                    />
+                    {isDescInvalid && <span className="text-[10px] font-bold text-rose-600">وصف المشكلة إجباري</span>}
+                  </div>
+
+                </div>
+              )}
+
+              {currentStep === 2 && (
+                <div className="flex flex-col gap-5 animate-fadeIn py-2">
+                  <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl flex items-center gap-4">
+                    <div className="w-12 h-12 bg-purple-700 text-white rounded-xl flex items-center justify-center text-xl shrink-0 font-extrabold">
+                      💵
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-purple-900 mb-0.5">مصاريف زيارة ثابتة</h4>
+                      <p className="text-[11px] text-purple-700 leading-relaxed">
+                        يتم احتساب مبلغ وقدره <strong className="font-extrabold text-slate-900">200 جنيه</strong> مصاريف زيارة الفني وتقييم العطل للمنشأة.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* سؤال شراء قطع الغيار المنقول للخطوة الثانية */}
+                  <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold text-slate-700">كيف تريد أن يتم شراء قطع الغيار إذا لزم؟ <span className="text-rose-500">*</span></label>
                     <select
                       value={sparePartsBy}
@@ -455,40 +293,9 @@ export default function NewOrder({ userData, onBack }) {
                     )}
                   </div>
 
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-slate-700">وصف تفصيلي للمشكلة <span className="text-rose-500">*</span></label>
-                    <textarea 
-                      rows="2"
-                      placeholder="اكتب تفاصيل المشكلة والأعطال هنا..." 
-                      value={description} 
-                      onChange={(e) => setDescription(e.target.value)}
-                      className={`p-3 border rounded-xl text-xs outline-none bg-white resize-none transition ${
-                        isDescInvalid ? 'border-rose-500 bg-rose-50 text-rose-600' : 'border-slate-300 focus:border-purple-700'
-                      }`}
-                    />
-                    {isDescInvalid && <span className="text-[10px] font-bold text-rose-600">وصف المشكلة إجباري</span>}
-                  </div>
-
-                </div>
-              )}
-
-              {currentStep === 2 && (
-                <div className="flex flex-col gap-5 animate-fadeIn py-4">
-                  <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl flex items-center gap-4">
-                    <div className="w-12 h-12 bg-purple-700 text-white rounded-xl flex items-center justify-center text-xl shrink-0 font-extrabold">
-                      💵
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-purple-900 mb-0.5">مصاريف زيارة ثابتة</h4>
-                      <p className="text-[11px] text-purple-700 leading-relaxed">
-                        يتم احتساب مبلغ وقدره <strong className="font-extrabold text-slate-900">200 جنيه</strong> مصاريف زيارة الفني وتقييم العطل للمنشأة.
-                      </p>
-                    </div>
-                  </div>
-
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-2">
                     <div className="flex justify-between text-xs">
-                      <span className="text-slate-500">العنوان الكامل:</span>
+                      <span className="text-slate-500">العنوان المسجل:</span>
                       <span className="font-bold text-slate-900">{fullAddressPreview}</span>
                     </div>
                     <div className="flex justify-between text-xs">
@@ -496,8 +303,8 @@ export default function NewOrder({ userData, onBack }) {
                       <span className="font-bold text-slate-900">{serviceCategory}</span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-slate-500">قطع الغيار إذا لزم:</span>
-                      <span className="font-bold text-slate-900">{sparePartsBy === 'tech' ? 'الفني يجلبها بالفواتير الخاصة بالمعرض' : 'العميل سيوفرها'}</span>
+                      <span className="text-slate-500">قطع الغيار:</span>
+                      <span className="font-bold text-slate-900">{sparePartsBy === 'tech' ? 'الفني يجلبها' : sparePartsBy === 'client' ? 'أنا سأوفرها' : 'لم يتم الاختيار'}</span>
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-500">مصاريف الزيارة:</span>
