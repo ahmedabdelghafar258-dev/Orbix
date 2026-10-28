@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateProfile } from 'firebase/auth';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
-// نفس قاعدة بيانات محافظات ومراكز وقرى مصر المعتمدة بدقة
+// نفس قاعدة بيانات محافظات ومراكز وقرى مصر المعتمدة
 const EGYPT_GOVERNORATES_DATA = {
   "الفيوم": {
     "مركز الفيوم": [
@@ -167,8 +167,6 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
   const [passwordError, setPasswordError] = useState('');
 
   const [loading, setLoading] = useState(false);
-  
-  // حالة النافذة المنبثقة (Modal) المخصصة للتحديثات
   const [successModal, setSuccessModal] = useState({ show: false, message: '' });
 
   // دالة اختيار وضغط الصورة
@@ -211,17 +209,15 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
     }
   };
 
-  // دالة حذف الصورة الشخصية
   const handleDeleteImage = () => {
     setProfileImage('');
   };
 
-  // تحديث البيانات الشخصية والعنوان
+  // دالة حفظ التعديلات وتحديث البيانات لتسمع في التطبيق وفي NewOrder فوراً
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     if (!auth.currentUser) return;
 
-    // التحقق من إجبارية حقول العنوان إذا كان الحساب لعميل
     if (userData?.userCategory === 'client') {
       if (governorate === '-' || cityOrCenter === '-' || !streetDetails.trim()) {
         alert("يرجى اختيار المحافظة والمركز وكتابة تفاصيل الشارع بدقة.");
@@ -238,7 +234,6 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
       const now = Date.now();
       const sixMonths = 6 * 30 * 24 * 60 * 60 * 1000;
 
-      // التحقق من تغيير الاسم (مرة كل 6 أشهر)
       if (fullName !== data.fullName && data.lastProfileUpdate) {
         if (now - data.lastProfileUpdate < sixMonths) {
           alert("عذراً، لا يمكنك تغيير الاسم إلا مرة واحدة كل 6 أشهر.");
@@ -247,7 +242,6 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
         }
       }
 
-      // تتبع الحقول التي تم تغييرها فعلياً بدقة
       let changedFields = [];
       if (fullName !== data.fullName) changedFields.push('الاسم الكامل');
       if (phone !== data.phone) changedFields.push('رقم التليفون');
@@ -268,12 +262,17 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
         }
       }
 
-      // تحديث الاسم في Firebase Auth
       await updateProfile(auth.currentUser, {
         displayName: fullName
       });
 
-      // بناء كائن التحديث لـ Firestore
+      const updatedAddress = userData?.userCategory === 'client' ? {
+        governorate,
+        cityOrCenter,
+        villageOrDistrict: villageOrDistrict !== '-' ? villageOrDistrict : 'غير محدد',
+        streetDetails: streetDetails.trim()
+      } : (userData?.address || {});
+
       const updateData = {
         fullName: fullName,
         phone: phone,
@@ -282,28 +281,32 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
       };
 
       if (userData?.userCategory === 'client') {
-        updateData.address = {
-          governorate,
-          cityOrCenter,
-          villageOrDistrict: villageOrDistrict !== '-' ? villageOrDistrict : 'غير محدد',
-          streetDetails: streetDetails.trim()
-        };
+        updateData.address = updatedAddress;
       }
 
       await updateDoc(userRef, updateData);
 
-      // تحديث الـ State الرئيسية
-      if (typeof onUpdateUserData === 'function') {
-        onUpdateUserData({
-          ...userData,
-          fullName,
-          phone,
-          profileimage: profileImage,
-          address: updateData.address || userData.address
-        });
+      // تجهيز كائن البيانات المحدث بالكامل لتمريره فوراً
+      const newUserDataFull = {
+        ...userData,
+        fullName,
+        phone,
+        profileimage: profileImage,
+        address: updatedAddress
+      };
+
+      // 1. التحديث الفوري للـ LocalStorage لضمان قراءته في NewOrder فوراً
+      try {
+        localStorage.setItem('cachedUserData', JSON.stringify(newUserDataFull));
+      } catch (err) {
+        console.error("Local storage error:", err);
       }
 
-      // صياغة رسالة النافذة المنبثقة
+      // 2. تمرير التحديثات الفورية للـ App State الرئيسية
+      if (typeof onUpdateUserData === 'function') {
+        onUpdateUserData(newUserDataFull);
+      }
+
       let messageText = "تم تحديث البيانات بنجاح!";
       if (changedFields.length > 0) {
         messageText = `تم تحديث (${changedFields.join('، ')}) بنجاح!`;
@@ -318,7 +321,6 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
     }
   };
 
-  // تغيير كلمة المرور
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
     setPasswordError('');
@@ -352,14 +354,12 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
     }
   };
 
-  // قوائم المحافظة والمراكز الديناميكية للعنوان
   const availableCenters = governorate !== '-' ? Object.keys(EGYPT_GOVERNORATES_DATA[governorate] || {}) : [];
   const availableVillages = (governorate !== '-' && cityOrCenter !== '-') ? EGYPT_GOVERNORATES_DATA[governorate][cityOrCenter] || [] : [];
 
   return (
     <div className="min-h-screen w-full bg-slate-50 font-cairo flex flex-col relative" dir="rtl">
       
-      {/* النافذة المنبثقة (Modal) لنجاح التحديث */}
       {successModal.show && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center gap-4">
@@ -383,7 +383,6 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
         </div>
       )}
 
-      {/* شريط علوي خاص بالصفحة */}
       <header className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
         <h1 className="text-lg font-extrabold text-slate-900">إعدادات الحساب</h1>
         <button 
@@ -396,14 +395,11 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
         </button>
       </header>
 
-      {/* محتوى الصفحة */}
       <main className="flex-1 max-w-3xl w-full mx-auto p-6 flex flex-col gap-6 my-4">
         
-        {/* نموذج البيانات الشخصية والصورة والعنوان */}
         <form onSubmit={handleUpdateProfile} className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm flex flex-col gap-6">
           <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-3">الملف الشخصي والبيانات الأساسية</h3>
           
-          {/* تغيير وحذف الصورة */}
           <div className="flex items-center gap-5">
             <div className="w-20 h-20 rounded-2xl bg-purple-100 overflow-hidden border-2 border-purple-200 flex items-center justify-center shrink-0">
               {profileImage ? (
@@ -457,12 +453,11 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
             />
           </div>
 
-          {/* تعديل العنوان (يظهر للعملاء فقط) */}
+          {/* تعديل العنوان للعملاء */}
           {userData?.userCategory === 'client' && (
             <div className="flex flex-col gap-4 border-t border-slate-100 pt-5">
               <h4 className="text-xs font-extrabold text-slate-900">عنوان السكن الأساسي</h4>
               
-              {/* المحافظة */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-slate-700">المحافظة <span className="text-rose-500">*</span></label>
                 <select 
@@ -482,7 +477,6 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
                 </select>
               </div>
 
-              {/* المركز أو المدينة */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-slate-700">المركز أو المدينة <span className="text-rose-500">*</span></label>
                 <select 
@@ -502,7 +496,6 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
                 </select>
               </div>
 
-              {/* القرية أو الحي (اختياري) */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-slate-700">القرية أو الحي <span className="text-slate-400">(اختياري)</span></label>
                 <select 
@@ -518,7 +511,6 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
                 </select>
               </div>
 
-              {/* تفاصيل الشارع ورقم البيت */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-slate-700">اسم الشارع ورقم البيت / العقار <span className="text-rose-500">*</span></label>
                 <input 
@@ -542,7 +534,6 @@ export default function AccountSettings({ userData, onBack, onUpdateUserData }) 
           </button>
         </form>
 
-        {/* نموذج تغيير كلمة السر */}
         <form onSubmit={handleUpdatePassword} className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm flex flex-col gap-6">
           <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-3">تغيير كلمة السر</h3>
           
