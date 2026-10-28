@@ -4,7 +4,7 @@ import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
 import Chat from './Chat';
 
-export default function AvailableOrders({ userData, onBack }) {
+export default function AvailableOrders({ userData, onBack, onOrderAccepted }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -82,8 +82,13 @@ export default function AvailableOrders({ userData, onBack }) {
         read: false
       });
 
-      alert('تم قبول الطلب بنجاح!');
-      fetchAvailableOrders();
+      // لو الـ Parent فاتح دالة تتبع، ننقله ليها فوراً ومعاه بيانات الطلب المقبول
+      if (typeof onOrderAccepted === 'function') {
+        onOrderAccepted({ ...order, status: 'accepted' });
+      } else {
+        alert('تم قبول الطلب بنجاح!');
+        fetchAvailableOrders();
+      }
     } catch (error) {
       console.error("Error accepting order:", error);
       alert('حدث خطأ أثناء قبول الطلب.');
