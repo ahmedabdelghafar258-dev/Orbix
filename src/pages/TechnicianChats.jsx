@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, orderBy, serverTimestamp, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, orderBy, serverTimestamp, getDocs, updateDoc, doc, setDoc } from 'firebase/firestore';
 import { auth } from '../firebase';
 
 export default function TechnicianChats({ userData, onBack }) {
@@ -11,6 +11,9 @@ export default function TechnicianChats({ userData, onBack }) {
   const [loading, setLoading] = useState(true);
   const [unreadCounts, setUnreadCounts] = useState({});
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  // خريطة لتخزين حالة نشاط كل عميل (clientId -> true/false)
+  const [clientsPresence, setClientsPresence] = useState({});
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -26,6 +29,35 @@ export default function TechnicianChats({ userData, onBack }) {
   }, []);
 
   const techId = auth.currentUser?.uid || userData?.uid || userData?.id;
+
+  // 1. تحديث نشاط الفني الحالي (Heartbeat) طالما هو فاتح شاشة المحادثات
+  useEffect(() => {
+    if (!techId) return;
+
+    const techStatusRef = doc(db, 'users_presence', techId);
+
+    const updateActiveStatus = async () => {
+      try {
+        await setDoc(techStatusRef, {
+          lastActive: serverTimestamp(),
+          isOnline: true
+        }, { merge: true });
+      } catch (err) {
+        console.error("Error updating tech presence:", err);
+      }
+    };
+
+    updateActiveStatus();
+    const interval = setInterval(updateActiveStatus, 10000);
+
+    return () => {
+      clearInterval(interval);
+      setDoc(techStatusRef, {
+        lastActive: null,
+        isOnline: false
+      }, { merge: true }).catch(() => {});
+    };
+  }, [techId]);
 
   // جلب الطلبات والمحادثات النشطة للفني
   useEffect(() => {
@@ -63,6 +95,36 @@ export default function TechnicianChats({ userData, onBack }) {
     fetchTechOrders();
   }, [techId]);
 
+  // 2. مراقبة حالة نشاط جميع العملاء المرتبطين بطلبات الفني لحظياً
+  useEffect(() => {
+    if (activeOrders.length === 0) return;
+
+    // استخراج معرفات العملاء الفريدة
+    const clientIds = [...new Set(activeOrders.map(order => order.clientId).filter(Boolean))];
+    if (clientIds.length === 0) return;
+
+    const unsubscribers = clientIds.map(clientId => {
+      const clientStatusRef = doc(db, 'users_presence', clientId);
+      return onSnapshot(clientStatusRef, (docSnap) => {
+        let active = false;
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && data.lastActive && data.isOnline) {
+            const lastActiveTime = data.lastActive.toMillis ? data.lastActive.toMillis() : new Date(data.lastActive).getTime();
+            if (Date.now() - lastActiveTime < 25000) {
+              active = true;
+            }
+          }
+        }
+        setClientsPresence(prev => ({ ...prev, [clientId]: active }));
+      });
+    });
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [activeOrders]);
+
   // تتبع الرسائل غير المقروءة لكل محادثة
   useEffect(() => {
     if (!techId || activeOrders.length === 0) return;
@@ -86,7 +148,7 @@ export default function TechnicianChats({ userData, onBack }) {
     };
   }, [activeOrders, techId]);
 
-  // الاستماع اللحظي للرسائل وتحديث حالتها إلى مقروءة (read: true) فور فتح المحادثة لتختفي العلامة
+  // الاستماع اللحظي للرسائل وتحديث حالتها إلى مقروءة (read: true) فور فتح المحادثة
   useEffect(() => {
     if (!selectedOrder || !techId) return;
 
@@ -160,7 +222,7 @@ export default function TechnicianChats({ userData, onBack }) {
 
       <div className="flex-1 flex overflow-hidden max-w-7xl w-full mx-auto p-6 gap-6">
         
-        {/* قائمة المحادثات الجانبية: يظهر اسم العميل وصورته واسم الأوردر الفرعي */}
+        {/* قائمة المحادثات الجانبية */}
         <div className="w-1/3 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
           <div className="p-4 border-b border-slate-100 font-bold text-slate-700 text-sm">العملاء النشطون</div>
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
@@ -171,6 +233,8 @@ export default function TechnicianChats({ userData, onBack }) {
             ) : (
               activeOrders.map(order => {
                 const unread = unreadCounts[order.id] || 0;
+                const isClientActive = clientsPresence[order.clientId];
+
                 return (
                   <div 
                     key={order.id}
@@ -178,23 +242,34 @@ export default function TechnicianChats({ userData, onBack }) {
                     className={`p-4 cursor-pointer transition flex items-center justify-between ${selectedOrder?.id === order.id ? 'bg-indigo-50 border-r-4 border-indigo-600' : 'hover:bg-slate-50'}`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 overflow-hidden border border-indigo-200 flex items-center justify-center shrink-0">
-                        {order.clientImage ? (
-                          <img src={order.clientImage} alt="Client" className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-sm font-extrabold text-indigo-700">
-                            {order.clientName?.charAt(0) || '👤'}
-                          </span>
+                      <div className="relative">
+                        <div className="w-10 h-10 rounded-full bg-indigo-100 overflow-hidden border border-indigo-200 flex items-center justify-center shrink-0">
+                          {order.clientImage ? (
+                            <img src={order.clientImage} alt="Client" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-sm font-extrabold text-indigo-700">
+                              {order.clientName?.charAt(0) || '👤'}
+                            </span>
+                          )}
+                        </div>
+                        {/* نقطة الاتصال الخضراء المصغرة على الصورة */}
+                        {isClientActive && (
+                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
                         )}
                       </div>
+                      
                       <div>
-                        {/* اسم العميل هو العنوان الأساسي والبارز */}
-                        <h4 className="text-xs font-extrabold text-slate-900">
+                        <h4 className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
                           {order.clientName || 'عميل Orbix'}
                         </h4>
                         <p className="text-[11px] text-slate-500 mt-0.5">
                           {order.title || order.serviceCategory || 'صيانة عامة'}
                         </p>
+                        {isClientActive ? (
+                          <span className="text-[9px] text-emerald-600 font-bold block mt-0.5">متصل الآن 🟢</span>
+                        ) : (
+                          <span className="text-[9px] text-slate-400 font-bold block mt-0.5">غير متصل</span>
+                        )}
                       </div>
                     </div>
 
@@ -215,7 +290,12 @@ export default function TechnicianChats({ userData, onBack }) {
           {selectedOrder ? (
             <>
               <div className="p-4 border-b border-slate-100 font-bold text-slate-800 bg-slate-50/50 text-sm flex justify-between items-center">
-                <span>محادثة مع العميل: <span className="text-indigo-600 font-extrabold">{selectedOrder.clientName || 'عميل Orbix'}</span></span>
+                <div className="flex items-center gap-2">
+                  <span>محادثة مع العميل: <span className="text-indigo-600 font-extrabold">{selectedOrder.clientName || 'عميل Orbix'}</span></span>
+                  {clientsPresence[selectedOrder.clientId] && (
+                    <span className="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-full">متصل الآن 🟢</span>
+                  )}
+                </div>
                 <span className="text-xs text-slate-500">الطلب: {selectedOrder.title || selectedOrder.serviceCategory}</span>
               </div>
               
