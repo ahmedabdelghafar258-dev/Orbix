@@ -4,88 +4,122 @@ import { doc, setDoc, getDocs, collection, query, where } from 'firebase/firesto
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
 
-// قاعدة بيانات محافظات ومدن وقرى مصر الشاملة والدقيقة 100%
+// قاعدة بيانات دقيقة ومحدثة لكل محافظات مصر، مراكزها، وقراها/أحياؤها
 const EGYPT_GOVERNORATES_DATA = {
+  "الفيوم": {
+    "مركز الفيوم": ["قرية دمو", "قرية العامرية", "قرية كفر فلوكس", "قرية دملاش", "قرية الحامولي", "قرية زاوية الكرادسة", "حي شرق مدينة الفيوم", "حي غرب مدينة الفيوم", "منشأة لطف الله"],
+    "مركز إطسا": ["قرية مطول", "قرية قصر الباسل", "قرية منية الحيط", "قرية دفنو", "قرية تطون", "قرية أبو جندير", "مدينة إطسا"],
+    "مركز سنورس": ["قرية جرفاس", "قرية سنهور القبلية", "قرية بهمش", "قرية ترسا", "قرية نقالطة", "مدينة سنورس"],
+    "مركز أبشواي": ["قرية النصارية", "قرية طдаو", "قرية أبو غرارة", "مدينة أبشواي", "قرية العجميين"],
+    "مركز طامية": ["قرية الروضة", "قرية دار السلام", "قرية فانوس", "مدينة طامية", "قرية السراني"],
+    "مركز يوسف الصديق": ["قرية النصر", "قرية قارون", "قرية الشواشنة", "مدينة يوسف الصديق", "قرية المشرك"],
+    "الفيوم الجديدة": ["حي الحي الأول", "حي الحي الثاني", "حي الاستثماري", "منطقة الإسكان الاجتماعي"]
+  },
   "القاهرة": {
-    "القاهرة (مدينة نصر والمناطق المحيطة)": ["التجمع الخامس", "مدينة نصر", "المعادي", "مصر الجديدة", "الدقي", "المقطم", "المهندسين", "شبرا", "عين شمس", "المرج", "حلوان", "المنيل", "الزمالك", "الروضة", "العباسية", "عزبة الهجانة", "بساتين المدي", "الزهراء"]
+    "مدينة نصر": ["حي الألف مسكن", "حي رابعة العدوية", "حي الـ 8 عمارات", "حي السفارات", "عزبة الهجانة"],
+    "التجمع الخامس": ["الدبلوماسيين", "النرجس", "النرگس", "البنفسج", "المستثمرين الجنوبية", "المستثمرين الشمالية"],
+    "المعادي": ["معادي ثكنات", "معادي السرايات", "المعادي الجديدة", "طريق صقر قريش"],
+    "مصر الجديدة": ["سلطان باشا", "الميرغني", "كوربة", "وهدان"],
+    "الدقي": ["شارع مصدق", "شارع السودان", "شارع البطل أحمد عبد العزيز"],
+    "المقطم": ["الهضبة الوسطى", "الهضبة العليا", "المقطم القديم"]
   },
   "الجيزة": {
-    "الجيزة والشيخ زايد": ["الشيخ زايد", "6 أكتوبر", "الهرم", "فيصل", "العجوزة", "البدرشين", "أبو النمرس", "العياط", "الصف", "أطفيح", "كرداسة", "منشأة القناطر", "الوراق", "إمبابة", "ناهيا", "بشتيل", "برك الخيام"]
+    "الشيخ زايد": ["الحي الأول", "الحي الثاني", "الحي الـ 11", "المجاز", "بفرلي هيلز"],
+    "6 أكتوبر": ["الحي الأول", "الحي المتميز", "الممشى السياحي", "حدائق الأهرام", "أبو رواش"],
+    "الهرم": ["شارع الهرم الرئيسي", "الطالبية", "المريوطية", "المنشية"],
+    "فيصل": ["شارع فيصل الرئيسي", "المطبعة", "العريش", "الشارع الجديد"]
   },
   "الإسكندرية": {
-    "الإسكندرية والساحل": ["الإسكندرية (وسط/شرق)", "منتزه أول", "منتزه ثان", "العامريّة", "العجمي", "البيطاش", "برج العرب", "ابيس", "أبي قير", "المعمورة", "السيوف"]
+    "منتزه أول": ["المندرة", "ميامي", "سيدي بشر", "العيسوي"],
+    "منتزه ثان": ["المعمورة", "أبي قير", "المنتزه"],
+    "وسط الإسكندرية": ["محطة الرمل", "المنشية", "الإبراهيمية", "سموحة"]
   },
   "القليوبية": {
-    "بنها وشبرا الخيمة": ["بنها", "شبرا الخيمة", "قليوب", "قها", "الخصوص", "القناطر الخيرية", "الخانكة", "شبين القناطر", "كفر شكر", "طوخ", "ميت كنانة", "سندبيس"]
+    "بنها": ["منشية النور", "فلل بنها", "الحرية", "كفر الجزار"],
+    "شبرا الخيمة": ["بيجام", "بهتيم", "مؤسسة الزكاة", "مسطرد"]
   },
   "الدقهلية": {
-    "المنصورة ومراكزها": ["المنصورة", "طلخا", "ميت غمر", "دكرنس", "سنبلاوين", "أجا", "بلقاس", "المنزلة", "تمي الأمديد", "نبروه", "الجمالية", "شربين", "منية النصر", "باريس", "برق العبد"]
+    "المنصورة": ["حي الجامعة", "توريل", "شارع الترعة", "سندوب", "مشلة"],
+    "ميت غمر": ["دقادوس", "ميت غمر البلد", "بشلا"]
   },
   "الشرقية": {
-    "الزقازيق والعاشر": ["الزقازيق", "العاشر من رمضان", "بلبيس", "منيا القمح", "أبو كبير", "فاقوس", "ديرب نجم", "الحسينية", "كفر صقر", "أبو حماد", "الإبراهيمية", "ههيا", "مشتول السوق", "صان الحجر"]
+    "الزقازيق": ["فلل الزقازيق", "القومية", "اتفاق", "النحال"],
+    "العاشر من رمضان": ["المجاورة الأولى", "المجاورة العاشرة", "الأردني", "الابني"]
   },
   "الغربية": {
-    "طنطا والمحلة": ["طنطا", "المحلة الكبرى", "كفر الزيات", "زفتى", "السنطة", "بسيون", "سمنود", "قطور", "شبراملس", "محلة روح"]
+    "طنطا": ["شارع الاستاد", "سيجر", "المنشية الجديدة", "قطور"],
+    "المحلة الكبرى": ["المنشية", "سكة زفتى", "الشون"]
   },
   "المنوفية": {
-    "شبين الكوم ومراكزها": ["شبين الكوم", "منوف", "السادات", "الشهداء", "تلا", "سرس الليان", "أشمون", "قويسنا", "بركة السبع", "شنوان", "مصيلحة"]
+    "شبين الكوم": ["المساعي", "عووضة", "ميت خاقان"],
+    "قويسنا": ["قويسنا البلد", "منشأة دملو"]
   },
   "البحيرة": {
-    "دمنهور وكفر الدوار": ["دمنهور", "كفر الدوار", "رشيد", "إيتاي البارود", "أبو حمص", "حوش عيسى", "كوم حمادة", "النوبارية الجديدة", "إدكو", "محمودية", "الدنجلاوي"]
+    "دمنهور": ["أبو الريش", "سيدي مفتاح", "الإتحاد"],
+    "كفر الدوار": ["المصنع", "أبو بكر الصديق", "السعرانية"]
   },
   "كفر الشيخ": {
-    "كفر الشيخ ودسوق": ["كفر الشيخ", "دسوق", "فوة", "مطوبس", "بلطيم", "بيلا", "الحامول", "سيدي سالم", "قلين", "الرياض", "الحامول"]
+    "كفر الشيخ": ["سيدي مبارك", "القنطرة البيضاء", "الاستاد"],
+    "دسوق": ["دمنكة", "الكنيسة", "المحطة"]
   },
   "الدمياط": {
-    "دمياط ورأس البر": ["دمياط", "فارسكور", "الزرقا", "السرو", "كفر البطيخ", "رأس البر", "دمياط الجديدة", "عزبة البرج", "الروضة", "العباسية"]
+    "دمياط": ["الاعصار", "السنانية", "شطا"],
+    "رأس البر": ["اللجون", "القرية الأولمبية", "شارع 101"]
   },
   "بورسعيد": {
-    "بورسعيد وبورفؤاد": ["بورسعيد (الأحياء)", "بورفؤاد", "المنطقة الحرة الاستثمارية", "الجنوب", "مفروزة"]
+    "حي الشرق": ["شارع الجمهورية", "شارع التجاري"],
+    "بورفؤاد": ["منطقة الإسكان التعاوني", "حي العقرب"]
   },
   "الإسماعيلية": {
-    "الإسماعيلية ورافعاتها": ["الإسماعيلية", "فايد", "القنطرة شرق", "القنطرة غرب", "التل الكبير", "أبو صوير", "القصاصين الجديدة", "نفيشة"]
+    "الإسماعيلية": ["شارع طه حسين", "نفيشة", "الشهداء"]
   },
   "السويس": {
-    "السويس والأحياء": ["السويس (الأحياء)", "العين السخنة", "الأربعين", "عتاقة", "الجناين"]
-  },
-  "الفيوم": {
-    "الفيوم ومراكزها": ["مدينة الفيوم", "الفيوم الجديدة", "مركز الفيوم", "مركز سنورس", "مركز إطسا", "مركز أبشواي", "مركز طامية", "مركز يوسف الصديق", "تونس"]
+    "الأربعين": ["حي السواح", "حي الموشي"],
+    "عتاقة": ["بورتوفيق", "الحرفيين"]
   },
   "بني سويف": {
-    "بني سويف ومراكزها": ["بني سويف", "الواسطى", "ناصر", "إهناسيا", "ببا", "الفشن", "سمسطا", "بني سويف الجديدة", "شرق النيل"]
+    "بني سويف": ["الأستاد", "مقبل", "المرمد"],
+    "الواسطى": ["الميمون", "إهناسيا الخضراء"]
   },
   "المنيا": {
-    "المنيا ومراكزها": ["المنيا", "ملوي", "بني مزار", "سمالوط", "أبو قرقاص", "دير مواس", "مغاغة", "العدوة", "المنيا الجديدة", "طحا الأعمدة"]
+    "المنيا": ["شلب", "أبسطة", "بوهلال"],
+    "ملوي": ["الروضة", "البرشا"]
   },
   "أسيوط": {
-    "أسيوط ومراكزها": ["أسيوط", "ديروط", "منفلوط", "أبو تيج", "الغنايم", "ساحل سليم", "البداري", "أبنوب", "صدفا", "أسيوط الجديدة"]
+    "أسيوط": ["الوليدية", "سنان", "غرب البلد"],
+    "منفلوط": ["المعابدة", "بني رافع"]
   },
   "سوهاج": {
-    "سوهاج ومراكزها": ["سوهاج", "جرجا", "طهطا", "المراغة", "أخميم", "المنشأة", "جهينة", "دار السلام", "ساقلتة", "العسيرات"]
+    "سوهاج": ["الشهيد فراج", "المحافظة", "إمبابة سوهاج"],
+    "طهطا": ["شطورة", "القرعان"]
   },
   "قنا": {
-    "قنا ومراكزها": ["قنا", "نجع حمادي", "دشنا", "قوص", "فرشوط", "ابوتشت", "قفط", "نقادة"]
+    "قنا": ["المعنا", "الجبلاو"],
+    "نجع حمادي": ["الجهاد", "بهجورة"]
   },
   "أسوان": {
-    "أسوان ومراكزها": ["أسوان", "إدفو", "كوم أمبو", "دراو", "أبو سمبل السياحية", "نصر النوبة"]
+    "أسوان": ["السيل", "الخزان", "شمال الصداقة"],
+    "كوم أمبو": ["فارس", "إقليت"]
   },
   "الأقصر": {
-    "الأقصر ومراكزها": ["الأقصر", "إسنا", "أرمنت", "قرنة", "البياضية", "الزينية"]
+    "الأقصر": ["الكرنك", "العوامية"],
+    "إسنا": ["القرية الدبلوماسية", "الدير"]
   },
   "البحر الأحمر": {
-    "الغردقة والمدن": ["الغردقة", "راس غارب", "سفاجا", "القصير", "مرسى علم", "شلاتين", "حلايب"]
+    "الغردقة": ["الاحياء", "الكوثر", "حتا", "الشيراتون"]
   },
   "الوادي الجديد": {
-    "الخارجة والداخلة": ["الخارجة", "الداخلة", "باريس", "الفرافرة", "بلاط"]
+    "الخارجة": ["بولاق", "المنيرة"]
   },
   "مطروح": {
-    "مرسى مطروح وسيوة": ["مرسى مطروح", "الحمام", "الضبعة", "سيدي براني", "السلوم", "سيوة", "العلمين", "رأس الحكمة"]
+    "مرسى مطروح": ["العوام", "الرميلة", "القصر"]
   },
   "شمال سيناء": {
-    "العريش والشيخ زويد": ["العريش", "الشيخ زويد", "رفح", "بئر العبد", "نخل", "الحسنة"]
+    "العريش": ["الريسة", "مساعيد", "الزهور"]
   },
   "جنوب سيناء": {
-    "شرم الشيخ ودهب": ["تور سيناء", "شرم الشيخ", "دهب", "نويبع", "طابا", "سنت كاترين", "أبو رديس", "أبو زنيمة"]
+    "شرم الشيخ": ["خليج نعمة", "نبق", "الرأس الركبة"],
+    "دهب": ["الأسلة", "المشربة"]
   }
 };
 
@@ -103,8 +137,8 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
 
   // حقول العنوان بالتفصيل للعملاء
   const [governorate, setGovernorate] = useState('-');
-  const [city, setCity] = useState('-');
-  const [villageOrDistrict, setVillageOrDistrict] = useState('-');
+  const [cityOrCenter, setCityOrCenter] = useState('-');
+  const [villageOrDistrict, setVillageOrDistrict] = useState('-'); // اختياري
   const [streetDetails, setStreetDetails] = useState('');
 
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
@@ -156,10 +190,10 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
       return;
     }
 
-    // التحقق من إجبارية حقول العنوان للعملاء فقط
+    // التحقق من الحقول الإجبارية للعنوان للعملاء (المحافظة، المركز، والشارع إجباري - القرية اختياري)
     if (userCategory === 'client') {
-      if (governorate === '-' || city === '-' || villageOrDistrict === '-' || !streetDetails.trim()) {
-        setErrorMsg('يرجى اختيار وتحديد تفاصيل العنوان بالكامل (المحافظة، المدينة، القرية/المنطقة، وتفاصيل الشارع).');
+      if (governorate === '-' || cityOrCenter === '-' || !streetDetails.trim()) {
+        setErrorMsg('يرجى اختيار المحافظة والمركز، وكتابة تفاصيل الشارع بدقة.');
         return;
       }
     }
@@ -189,8 +223,8 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
       if (userCategory === 'client') {
         userData.address = {
           governorate,
-          city,
-          villageOrDistrict,
+          cityOrCenter,
+          villageOrDistrict: villageOrDistrict !== '-' ? villageOrDistrict : 'غير محدد',
           streetDetails: streetDetails.trim()
         };
       }
@@ -400,7 +434,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         bgImage={bgWaves}
         specializationOptions={[]}
         attemptedSubmit={attemptedSubmit}
-        {...{ fullName, setFullName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, villageOrDistrict, setVillageOrDistrict, streetDetails, setStreetDetails, EGYPT_GOVERNORATES_DATA }}
+        {...{ fullName, setFullName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, cityOrCenter, setCityOrCenter, villageOrDistrict, setVillageOrDistrict, streetDetails, setStreetDetails, EGYPT_GOVERNORATES_DATA }}
       />
     );
   }
@@ -419,7 +453,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         bgImage={bgWaves}
         specializationOptions={[]}
         attemptedSubmit={attemptedSubmit}
-        {...{ fullName, setFullName, companyName, setCompanyName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, city, setCity, villageOrDistrict, setVillageOrDistrict, streetDetails, setStreetDetails, EGYPT_GOVERNORATES_DATA }}
+        {...{ fullName, setFullName, companyName, setCompanyName, username, setUsername, phone, setPhone, email, setEmail, password, setPassword, confirmPassword, setConfirmPassword, specialization, setSpecialization, errorMsg, loading, usernameTaken, governorate, setGovernorate, cityOrCenter, setCityOrCenter, villageOrDistrict, setVillageOrDistrict, streetDetails, setStreetDetails, EGYPT_GOVERNORATES_DATA }}
       />
     );
   }
@@ -476,25 +510,24 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
   return null;
 }
 
-// مكون الفورم الموحد مع خيارات العناوين المصرية الشاملة
+// مكون الفورم الموحد مع القوائم المنسدلة الذكية للعنوان
 function RegisterForm({ 
   title, isImageRequired, isEmailRequired, showCompanyName, showSpecialization, showAddress, specializationOptions,
   onSubmit, onBack, bgImage, fullName, setFullName, companyName, setCompanyName, 
   username, setUsername, phone, setPhone, email, setEmail, 
   password, setPassword, confirmPassword, setConfirmPassword, 
   specialization, setSpecialization, errorMsg, loading, usernameTaken, attemptedSubmit,
-  governorate, setGovernorate, city, setCity, villageOrDistrict, setVillageOrDistrict, streetDetails, setStreetDetails, EGYPT_GOVERNORATES_DATA 
+  governorate, setGovernorate, cityOrCenter, setCityOrCenter, villageOrDistrict, setVillageOrDistrict, streetDetails, setStreetDetails, EGYPT_GOVERNORATES_DATA 
 }) {
   const isSpecInvalid = showSpecialization && attemptedSubmit && specialization === '-';
   const isGovInvalid = showAddress && attemptedSubmit && governorate === '-';
-  const isCityInvalid = showAddress && attemptedSubmit && city === '-';
-  const isVillageInvalid = showAddress && attemptedSubmit && villageOrDistrict === '-';
+  const isCityInvalid = showAddress && attemptedSubmit && cityOrCenter === '-';
   const isStreetInvalid = showAddress && attemptedSubmit && !streetDetails.trim();
 
-  // جلب المدن بناءً على المحافظة المختارة
-  const availableCities = governorate !== '-' ? Object.keys(EGYPT_GOVERNORATES_DATA[governorate] || {}) : [];
-  // جلب القرى / الأحياء بناءً على المدينة المختارة
-  const availableVillages = (governorate !== '-' && city !== '-') ? EGYPT_GOVERNORATES_DATA[governorate][city] || [] : [];
+  // جلب مراكز المحافظة المختارة
+  const availableCenters = governorate !== '-' ? Object.keys(EGYPT_GOVERNORATES_DATA[governorate] || {}) : [];
+  // جلب القرى والأحياء الخاصة بالمركز المختصر (اختياري)
+  const availableVillages = (governorate !== '-' && cityOrCenter !== '-') ? EGYPT_GOVERNORATES_DATA[governorate][cityOrCenter] || [] : [];
 
   return (
     <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-hidden" style={{ backgroundImage: `url(${bgImage})` }} dir="rtl">
@@ -584,14 +617,14 @@ function RegisterForm({
         {/* حقول العنوان للعملاء فقط */}
         {showAddress && (
           <>
-            {/* اختيار المحافظة */}
+            {/* اختيار المحافظة (إجباري) */}
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-slate-700">المحافظة <span className="text-rose-500">*</span></label>
               <select 
                 value={governorate} 
                 onChange={(e) => {
                   setGovernorate(e.target.value);
-                  setCity('-');
+                  setCityOrCenter('-');
                   setVillageOrDistrict('-');
                 }}
                 className={`p-2.5 border rounded-xl text-sm outline-none bg-white ${isGovInvalid ? 'border-rose-500 bg-rose-50 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'}`}
@@ -605,53 +638,51 @@ function RegisterForm({
               {isGovInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يجب اختيار المحافظة</p>}
             </div>
 
-            {/* اختيار المدينة / المركز */}
+            {/* اختيار المركز أو المدينة (إجباري) */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-700">المدينة / المركز <span className="text-rose-500">*</span></label>
+              <label className="text-xs font-bold text-slate-700">المركز أو المدينة <span className="text-rose-500">*</span></label>
               <select 
-                value={city} 
+                value={cityOrCenter} 
                 onChange={(e) => {
-                  setCity(e.target.value);
+                  setCityOrCenter(e.target.value);
                   setVillageOrDistrict('-');
                 }}
                 disabled={governorate === '-'}
                 className={`p-2.5 border rounded-xl text-sm outline-none bg-white disabled:bg-slate-100 disabled:cursor-not-allowed ${isCityInvalid ? 'border-rose-500 bg-rose-50 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'}`}
                 required
               >
-                <option value="-" disabled>-- اختر المدينة أو المركز --</option>
-                {availableCities.map((c) => (
-                  <option key={c} value={c} className="text-slate-900">{c}</option>
+                <option value="-" disabled>-- اختر المركز أو المدينة --</option>
+                {availableCenters.map((center) => (
+                  <option key={center} value={center} className="text-slate-900">{center}</option>
                 ))}
               </select>
-              {isCityInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يجب اختيار المدينة أو المركز</p>}
+              {isCityInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يجب اختيار المركز أو المدينة</p>}
             </div>
 
-            {/* اختيار القرية / الحي */}
+            {/* اختيار القرية أو الحي (اختياري) */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-700">القرية / الحي / المنطقة <span className="text-rose-500">*</span></label>
+              <label className="text-xs font-bold text-slate-700">القرية أو الحي <span className="text-slate-400">(اختياري)</span></label>
               <select 
                 value={villageOrDistrict} 
                 onChange={(e) => setVillageOrDistrict(e.target.value)}
-                disabled={city === '-'}
-                className={`p-2.5 border rounded-xl text-sm outline-none bg-white disabled:bg-slate-100 disabled:cursor-not-allowed ${isVillageInvalid ? 'border-rose-500 bg-rose-50 text-rose-600 font-bold' : 'border-slate-300 focus:border-purple-700'}`}
-                required
+                disabled={cityOrCenter === '-'}
+                className="p-2.5 border border-slate-300 rounded-xl text-sm outline-none bg-white disabled:bg-slate-100 disabled:cursor-not-allowed focus:border-purple-700"
               >
-                <option value="-" disabled>-- اختر القرية أو الحي --</option>
-                {availableVillages.map((v) => (
-                  <option key={v} value={v} className="text-slate-900">{v}</option>
+                <option value="-">-- اختر القرية أو الحي (اختياري) --</option>
+                {availableVillages.map((village) => (
+                  <option key={village} value={village} className="text-slate-900">{village}</option>
                 ))}
               </select>
-              {isVillageInvalid && <p className="text-xs font-bold text-rose-600 mt-1">يجب اختيار القرية أو الحي</p>}
             </div>
 
-            {/* تفاصيل الشارع ورقم المبنى */}
+            {/* تفاصيل الشارع ورقم البيت (إجباري) */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-700">اسم الشارع ورقم المبنى / الشقة <span className="text-rose-500">*</span></label>
+              <label className="text-xs font-bold text-slate-700">اسم الشارع ورقم البيت / العقار <span className="text-rose-500">*</span></label>
               <input 
                 type="text" placeholder="مثال: شارع الجمهورية، عمارة 14، الدور الثالث" value={streetDetails} onChange={(e) => setStreetDetails(e.target.value)}
                 className={`p-2.5 border rounded-xl text-sm outline-none bg-white ${isStreetInvalid ? 'border-rose-500 bg-rose-50/30' : 'border-slate-300 focus:border-purple-700'}`} required
               />
-              {isStreetInvalid && <p className="text-xs font-bold text-rose-600 mt-1">تفاصيل الشارع ورقم المبنى إجبارية</p>}
+              {isStreetInvalid && <p className="text-xs font-bold text-rose-600 mt-1">اسم الشارع ورقم البيت إجباري</p>}
             </div>
           </>
         )}
