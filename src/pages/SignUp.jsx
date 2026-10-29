@@ -23,6 +23,7 @@ import {
   sendEmailVerificationCode,
   verifyEmailCode
 } from '../services/authService';
+import VerifyCompanyEmail from './VerifyCompanyEmail';
 
 const EGYPT_GOVERNORATES_DATA = {
   "الفيوم": {
@@ -286,7 +287,9 @@ export default function SignUp({
       let userData;
 
       if (!userDocSnap.exists()) {
-        const baseUsername = user.email.split('@')[0].toLowerCase();
+        const baseUsername = user.email
+          .split('@')[0]
+          .toLowerCase();
 
         const usersRef = collection(db, 'users');
         const usernameQuery = query(
@@ -429,7 +432,13 @@ export default function SignUp({
         return;
       }
 
-      // 1. إنشاء حساب Firebase أولاً
+      // 1. إرسال كود التحقق بـ EmailJS أولاً قبل إنشاء الحساب للتأكد من أن البريد شغال وصحيح
+      await sendEmailVerificationCode(
+        'temp_verification_id',
+        trimmedEmail
+      );
+
+      // 2. إذا تم الإرسال بنجاح، نقوم بإنشاء الحساب في Firebase
       const credential = await createUserWithEmailAndPassword(
         auth,
         trimmedEmail,
@@ -466,7 +475,7 @@ export default function SignUp({
 
       await setDoc(doc(db, 'users', createdUser.uid), userData);
 
-      // 2. إرسال كود التحقق عبر EmailJS
+      // إعادة إرسال الكود بالمعرف الحقيقي للمستخدم لحفظه في قاعدة البيانات بشكل صحيح
       await sendEmailVerificationCode(
         createdUser.uid,
         trimmedEmail
@@ -476,10 +485,12 @@ export default function SignUp({
       setRegisteredUserEmail(trimmedEmail);
       setCompanyVerificationCode('');
 
-      // إنهاء جلسة Firebase المؤقتة حتى يتم التحقق
+      // إنهاء جلسة Firebase المؤقتة
       await signOut(auth);
 
-      // التحويل المباشر لخطوة إدخال الكود
+      setPassword('');
+      setConfirmPassword('');
+
       setStep('verify-email');
     } catch (error) {
       console.error('Registration & Email Error:', error);
@@ -498,7 +509,7 @@ export default function SignUp({
         setErrorMsg('كلمة المرور ضعيفة. استخدم كلمة مرور أقوى.');
       } else {
         setErrorMsg(
-          'فشل إرسال بريد التحقق: ' +
+          'فشل إرسال بريد التحقق عبر EmailJS تأكد من صحة البريد أو إعدادات الخدمة: ' +
           (error.message || 'خطأ غير معروف')
         );
       }
@@ -524,13 +535,11 @@ export default function SignUp({
     setLoading(true);
 
     try {
-      // 1. التحقق من الكود
       await verifyEmailCode(
         registeredUserId,
         companyVerificationCode.trim()
       );
 
-      // 2. جلب بيانات المستخدم بعد التوثيق
       const userDocRef = doc(db, 'users', registeredUserId);
       const userDocSnap = await getDoc(userDocRef);
 
@@ -546,11 +555,21 @@ export default function SignUp({
         );
       }
 
-      // 3. تسجيل الدخول أوتوماتيكياً بكلمة المرور التي أدخلها المستخدم أثناء التسجيل
+      const enteredPassword = window.prompt(
+        'تم التحقق من بريدك الإلكتروني. أدخل كلمة المرور لتسجيل الدخول.'
+      );
+
+      if (!enteredPassword) {
+        setErrorMsg(
+          'تم التحقق من البريد. يمكنك تسجيل الدخول باستخدام بريدك وكلمة المرور.'
+        );
+        return;
+      }
+
       const credential = await signInWithEmailAndPassword(
         auth,
         registeredUserEmail,
-        password
+        enteredPassword
       );
 
       if (credential.user.uid !== registeredUserId) {
@@ -563,7 +582,6 @@ export default function SignUp({
         throw new Error('تعذر فتح الحساب بعد التحقق.');
       }
 
-      // 4. الدخول للحساب والتوجه للوحة التحكم
       onLoginSuccess(userData);
     } catch (error) {
       console.error('Email Verification Error:', error);
@@ -601,7 +619,6 @@ export default function SignUp({
     }
   };
 
-  // التوجيه التلقائي لصفحة إدخال الكود
   if (step === 'verify-email') {
     return (
       <VerifyCompanyEmail
@@ -1343,7 +1360,7 @@ function RegisterForm({
           className="mt-2 p-3 bg-purple-700 text-white font-bold rounded-xl hover:bg-purple-800 transition cursor-pointer disabled:opacity-50 text-sm shadow-md"
         >
           {loading
-            ? 'جاري إنشاء الحساب وإرسال كود التحقق...'
+            ? 'جاري إرسال الكود وإنشاء الحساب...'
             : 'إنشاء الحساب'}
         </button>
       </form>
