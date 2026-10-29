@@ -3,6 +3,8 @@ import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } f
 import { doc, setDoc, getDocs, getDoc, collection, query, where } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
+import { sendEmailVerificationCode, verifyEmailCode } from '../services/authService'; // استيراد دوال التحقق
+import VerifyCompanyEmail from './VerifyCompanyEmail'; // استيراد صفحة التحقق
 
 const EGYPT_GOVERNORATES_DATA = {
   "الفيوم": {
@@ -166,6 +168,11 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
   const [villageOrDistrict, setVillageOrDistrict] = useState('-');
   const [streetDetails, setStreetDetails] = useState('');
 
+  // متغيرات خاصة بكود التحقق
+  const [registeredUserId, setRegisteredUserId] = useState(null);
+  const [registeredUserEmail, setRegisteredUserEmail] = useState('');
+  const [companyVerificationCode, setCompanyVerificationCode] = useState('');
+
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -220,6 +227,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
           email: user.email || '',
           profileimage: user.photoURL || '',
           specialization: '',
+          emailVerified: true, // جوجل موثق جاهز
           createdAt: new Date(),
           address: {
             governorate: 'الفيوم',
@@ -287,6 +295,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         phone: phone,
         email: email || '',
         specialization: specialization !== '-' ? specialization : '',
+        emailVerified: false, // يبدأ غير موثق لحين إدخال الكود
         createdAt: new Date()
       };
 
@@ -301,12 +310,57 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
 
       await setDoc(doc(db, "users", user.uid), userData);
 
+      // إرسال كود التحقق للإيميل والانتقال لصفحة التحقق
+      const targetEmail = email || fakeEmail;
+      await sendEmailVerificationCode(user.uid, targetEmail);
+      
+      setRegisteredUserId(user.uid);
+      setRegisteredUserEmail(targetEmail);
+      setStep('verify-email'); // الانتقال لصفحة إدخال الكود
+
     } catch (error) {
       setErrorMsg('حدث خطأ أثناء إنشاء الحساب: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // دالة تأكيد الكود المدخل
+  const handleVerifyCompanySubmit = async (e) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setLoading(true);
+
+    try {
+      await verifyEmailCode(registeredUserId, companyVerificationCode);
+      alert('🎉 تم تأكيد البريد الإلكتروني بنجاح!');
+      // سيتم توجيهه تلقائياً أو استكمال الدخول
+    } catch (error) {
+      setErrorMsg(error.message || 'كود التحقق غير صحيح، حاول مرة أخرى.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // عرض صفحة التحقق إذا وصل لها المستخدم
+  if (step === 'verify-email') {
+    return (
+      <VerifyCompanyEmail 
+        companyVerificationCode={companyVerificationCode}
+        setCompanyVerificationCode={setCompanyVerificationCode}
+        handleVerifyCompanySubmit={handleVerifyCompanySubmit}
+        setStep={() => setStep('main')}
+        onResendCode={async () => {
+          try {
+            await sendEmailVerificationCode(registeredUserId, registeredUserEmail);
+            alert('تم إعادة إرسال كود التحقق بنجاح.');
+          } catch {
+            alert('فشل إعادة إرسال الكود.');
+          }
+        }}
+      />
+    );
+  }
 
   if (step === 'main') {
     return (
@@ -788,7 +842,6 @@ function RegisterForm({
           )}
         </div>
 
-        {/* زر تسجيل الدخول باستخدام جوجل في أسفل الفورم قبل زر إنشاء الحساب */}
         <div className="mt-1">
           <div className="relative flex py-1 items-center">
             <div className="flex-grow border-t border-slate-200"></div>
