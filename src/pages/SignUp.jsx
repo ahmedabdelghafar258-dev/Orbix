@@ -3,8 +3,8 @@ import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } f
 import { doc, setDoc, getDocs, getDoc, collection, query, where } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import bgWaves from '../assets/bg-waves.png';
-import { sendEmailVerificationCode, verifyEmailCode } from '../services/authService'; // استيراد دوال التحقق
-import VerifyCompanyEmail from './VerifyCompanyEmail'; // استيراد صفحة التحقق
+import { sendEmailVerificationCode, verifyEmailCode } from '../services/authService'; 
+import VerifyCompanyEmail from './VerifyCompanyEmail'; 
 
 const EGYPT_GOVERNORATES_DATA = {
   "الفيوم": {
@@ -151,7 +151,7 @@ const EGYPT_GOVERNORATES_DATA = {
   }
 };
 
-export default function SignUp({ onSwitchToSignIn, onBack }) {
+export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
   const [step, setStep] = useState('main');
 
   const [fullName, setFullName] = useState('');
@@ -213,10 +213,11 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
       const userDocRef = doc(db, "users", user.uid);
       const userDocSnap = await getDoc(userDocRef);
 
+      let userData;
       if (!userDocSnap.exists()) {
         const baseUsername = user.email ? user.email.split('@')[0].toLowerCase() : `user_${user.uid.substring(0, 6)}`;
         
-        await setDoc(userDocRef, {
+        userData = {
           uid: user.uid,
           userCategory: 'client',
           userSubtype: 'individual',
@@ -227,7 +228,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
           email: user.email || '',
           profileimage: user.photoURL || '',
           specialization: '',
-          emailVerified: true, // جوجل موثق جاهز
+          emailVerified: true,
           createdAt: new Date(),
           address: {
             governorate: 'الفيوم',
@@ -235,7 +236,14 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
             villageOrDistrict: 'حي شرق مدينة الفيوم',
             streetDetails: 'غير محدد'
           }
-        });
+        };
+        await setDoc(userDocRef, userData);
+      } else {
+        userData = userDocSnap.data();
+      }
+
+      if (typeof onLoginSuccess === 'function') {
+        onLoginSuccess(userData);
       }
     } catch (error) {
       console.error("Google Sign-In Error:", error);
@@ -295,7 +303,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
         phone: phone,
         email: email || '',
         specialization: specialization !== '-' ? specialization : '',
-        emailVerified: false, // يبدأ غير موثق لحين إدخال الكود
+        emailVerified: false, 
         createdAt: new Date()
       };
 
@@ -310,13 +318,13 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
 
       await setDoc(doc(db, "users", user.uid), userData);
 
-      // إرسال كود التحقق للإيميل والانتقال لصفحة التحقق
+      // إرسال كود التحقق والانتقال لشاشة إدخال الكود
       const targetEmail = email || fakeEmail;
       await sendEmailVerificationCode(user.uid, targetEmail);
       
       setRegisteredUserId(user.uid);
       setRegisteredUserEmail(targetEmail);
-      setStep('verify-email'); // الانتقال لصفحة إدخال الكود
+      setStep('verify-email');
 
     } catch (error) {
       setErrorMsg('حدث خطأ أثناء إنشاء الحساب: ' + error.message);
@@ -325,7 +333,7 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
     }
   };
 
-  // دالة تأكيد الكود المدخل
+  // دالة تأكيد الكود المدخل وتوجيه المستخدم للوحة التحكم فوراً بعد النجاح
   const handleVerifyCompanySubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -334,7 +342,14 @@ export default function SignUp({ onSwitchToSignIn, onBack }) {
     try {
       await verifyEmailCode(registeredUserId, companyVerificationCode);
       alert('🎉 تم تأكيد البريد الإلكتروني بنجاح!');
-      // سيتم توجيهه تلقائياً أو استكمال الدخول
+
+      // جلب بيانات المستخدم المحدثة وتمريرها لتسجيل الدخول الفوري والتحويل للوحة التحكم
+      const userDocRef = doc(db, "users", registeredUserId);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (userDocSnap.exists() && typeof onLoginSuccess === 'function') {
+        onLoginSuccess(userDocSnap.data());
+      }
     } catch (error) {
       setErrorMsg(error.message || 'كود التحقق غير صحيح، حاول مرة أخرى.');
     } finally {
