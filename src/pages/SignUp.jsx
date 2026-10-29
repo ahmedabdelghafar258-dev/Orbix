@@ -272,8 +272,9 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
       return;
     }
 
-    // قفل الثغرة: منع الإيميلات الوهمية أو الفارغة نهائياً وإلغاء فكرة orbix.local
-    if (!email || !email.trim().includes('@') || !email.trim().includes('.')) {
+    // التحقق الصارم من أن البريد الإلكتروني حقيقي ومكتوب بشكل صحيح
+    const trimmedEmail = email ? email.trim() : '';
+    if (!trimmedEmail || !trimmedEmail.includes('@') || !trimmedEmail.includes('.')) {
       setErrorMsg('يجب كتابة بريد إلكتروني حقيقي وصحيح لتلقي كود التحقق.');
       return;
     }
@@ -289,9 +290,9 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
 
     try {
       const trimmedUsername = username.trim().toLowerCase();
-      const targetEmail = email.trim();
 
-      const userCredential = await createUserWithEmailAndPassword(auth, targetEmail, password);
+      // 1. إنشاء الحساب في فايربيس أولاً باستخدام الإيميل الحقيقي المدخل
+      const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
       const user = userCredential.user;
 
       const userData = {
@@ -302,9 +303,9 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
         companyName: companyName || '',
         username: trimmedUsername,
         phone: phone,
-        email: targetEmail,
+        email: trimmedEmail,
         specialization: specialization !== '-' ? specialization : '',
-        emailVerified: false, // تعيينه كغير موثق إجبارياً
+        emailVerified: false,
         createdAt: new Date()
       };
 
@@ -319,15 +320,16 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
 
       await setDoc(doc(db, "users", user.uid), userData);
 
-      // توليد وإرسال كود التحقق حصرياً للبريد الحقيقي
-      await sendEmailVerificationCode(user.uid, targetEmail);
+      // 2. إرسال إيميل التحقق عبر EmailJS بشكل إجباري (لو فشل، سيتم رمي خطأ ومنع الانتقال)
+      await sendEmailVerificationCode(user.uid, trimmedEmail);
       
       setRegisteredUserId(user.uid);
-      setRegisteredUserEmail(targetEmail);
-      setStep('verify-email'); // <-- تحويل إجباري لصفحة إدخال الكود
+      setRegisteredUserEmail(trimmedEmail);
+      setStep('verify-email'); // الانتقال لصفحة إدخال الكود حصرياً بعد نجاح الإرسال
 
     } catch (error) {
-      setErrorMsg('حدث خطأ أثناء إنشاء الحساب: ' + error.message);
+      console.error("Registration & Email Error:", error);
+      setErrorMsg('فشل إرسال بريد التحقق أو إنشاء الحساب: ' + (error.message || 'خطأ غير معروف'));
     } finally {
       setLoading(false);
     }
@@ -368,8 +370,8 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
           try {
             await sendEmailVerificationCode(registeredUserId, registeredUserEmail);
             alert('تم إعادة إرسال كود التحقق بنجاح.');
-          } catch {
-            alert('فشل إعادة إرسال الكود.');
+          } catch (err) {
+            alert('فشل إعادة إرسال الكود: ' + err.message);
           }
         }}
       />
@@ -559,7 +561,7 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
       <RegisterForm 
         title="حساب الأفراد والمنشآت الصغيرة"
         isImageRequired={false}
-        isEmailRequired={true} // جعلنا البريد إجباري هنا أيضاً
+        isEmailRequired={true}
         showCompanyName={false}
         showSpecialization={false}
         showAddress={true}
@@ -599,7 +601,7 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
       <RegisterForm 
         title="تسجيل الفنيين"
         isImageRequired={true}
-        isEmailRequired={true} // جعلنا البريد إجباري هنا أيضاً
+        isEmailRequired={true}
         showCompanyName={false}
         showSpecialization={true}
         showAddress={false}
@@ -829,7 +831,7 @@ function RegisterForm({
 
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold text-slate-700">
-            البريد الإلكتروني <span className="text-rose-500">(إجباري لتحقق الإيميل)</span>
+            البريد الإلكتروني <span className="text-rose-500">(إجباري لتلقي كود التحقق)</span>
           </label>
           <input 
             type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -882,7 +884,7 @@ function RegisterForm({
           type="submit" disabled={loading || usernameTaken || (confirmPassword && password !== confirmPassword)}
           className="mt-2 p-3 bg-purple-700 text-white font-bold rounded-xl hover:bg-purple-800 transition cursor-pointer disabled:opacity-50 text-sm shadow-md"
         >
-          {loading ? 'جاري إنشاء الحساب...' : 'إنشاء الحساب'}
+          {loading ? 'جاري إنشاء الحساب وإرسال البريد...' : 'إنشاء الحساب'}
         </button>
       </form>
     </div>
