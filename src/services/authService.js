@@ -10,9 +10,9 @@ import { auth, db } from '../firebase';
 import emailjs from '@emailjs/browser';
 
 // =====================================================
-// إعدادات EmailJS الخاصة بمنصة Orbix
+// إعدادات EmailJS الخاصة بمنصة Orbix (مطابقة بالتمام)
 // =====================================================
-const EMAILJS_SERVICE_ID = 'orbix_email_service';
+const EMAILJS_SERVICE_ID = 'Orbix_email_service'; // مطابقة لاسم الخدمة بحرف O كابيتال
 const EMAILJS_TEMPLATE_ID = 'template_lukfm65';
 const EMAILJS_PUBLIC_KEY = '8WP1f4i1pEbTOth8_';
 
@@ -26,7 +26,6 @@ export const sendEmailVerificationCode = async (userId, userEmail) => {
 
   const trimmedEmail = userEmail.trim().toLowerCase();
 
-  // تصحيح تعبير الـ Regex للتحقق من صحة الإيميل
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
     throw new Error('يرجى إدخال بريد إلكتروني صحيح.');
   }
@@ -39,7 +38,7 @@ export const sendEmailVerificationCode = async (userId, userEmail) => {
   const verificationRef = doc(db, 'email_verifications', userId);
 
   try {
-    // إرسال الرسالة عبر EmailJS
+    // إرسال الرسالة عبر EmailJS بالمعرّف الصحيح
     await emailjs.send(
       EMAILJS_SERVICE_ID,
       EMAILJS_TEMPLATE_ID,
@@ -77,7 +76,7 @@ export const sendEmailVerificationCode = async (userId, userEmail) => {
       'خطأ غير معروف';
     
     throw new Error(
-      `فشل إرسال أو حفظ كود التحقق. تفاصيل الخطأ: ${details}`
+      `فشل إرسال بريد التحقق عبر EmailJS تأكد من صيانة البريد أو إعدادات الخدمة: ${details}`
     );
   }
 };
