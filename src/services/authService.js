@@ -16,7 +16,7 @@ export const sendEmailVerificationCode = async (userId, userEmail) => {
     // 1. توليد كود مكون من 6 أرقام
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     
-    // 2. حساب وقت انتهاء الصلاحية (مثلاً بعد 10 دقائق)
+    // 2. حساب وقت انتهاء الصلاحية (بعد 10 دقائق)
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     // 3. تخزين الكود في جدول email_verifications في الفايرستور
@@ -62,7 +62,7 @@ export const verifyEmailCode = async (userId, enteredCode) => {
     const data = verifDocSnap.data();
     
     // التحقق من الصلاحية والوقت
-    if (data.code !== enteredCode.trim()) {
+    if (!enteredCode || data.code !== enteredCode.trim()) {
       throw new Error("كود التحقق غير صحيح!");
     }
 
@@ -84,7 +84,7 @@ export const verifyEmailCode = async (userId, enteredCode) => {
 };
 
 /**
- * تسجيل الدخول والتوجيه حسب الدور (الكود الخاص بك)
+ * تسجيل الدخول والتوجيه حسب الدور
  */
 export const loginAndRedirect = async (email, password, navigate) => {
   try {
