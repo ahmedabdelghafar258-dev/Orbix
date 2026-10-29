@@ -272,8 +272,9 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
       return;
     }
 
-    if ((userSubtype === 'client_company' || userSubtype === 'provider_company') && !email) {
-      setErrorMsg('البريد الإلكتروني إجباري للشركات والكيانات.');
+    // قفل الثغرة: منع الإيميلات الوهمية أو الفارغة نهائياً وإلغاء فكرة orbix.local
+    if (!email || !email.trim().includes('@') || !email.trim().includes('.')) {
+      setErrorMsg('يجب كتابة بريد إلكتروني حقيقي وصحيح لتلقي كود التحقق.');
       return;
     }
 
@@ -288,9 +289,9 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
 
     try {
       const trimmedUsername = username.trim().toLowerCase();
-      const fakeEmail = email ? email.trim() : `${trimmedUsername}@orbix.local`;
+      const targetEmail = email.trim();
 
-      const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, targetEmail, password);
       const user = userCredential.user;
 
       const userData = {
@@ -301,7 +302,7 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
         companyName: companyName || '',
         username: trimmedUsername,
         phone: phone,
-        email: email || '',
+        email: targetEmail,
         specialization: specialization !== '-' ? specialization : '',
         emailVerified: false, // تعيينه كغير موثق إجبارياً
         createdAt: new Date()
@@ -318,8 +319,7 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
 
       await setDoc(doc(db, "users", user.uid), userData);
 
-      // توليد وإرسال كود التحقق إجبارياً ثم التحويل لصفحة التأكيد
-      const targetEmail = email || fakeEmail;
+      // توليد وإرسال كود التحقق حصرياً للبريد الحقيقي
       await sendEmailVerificationCode(user.uid, targetEmail);
       
       setRegisteredUserId(user.uid);
@@ -559,7 +559,7 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
       <RegisterForm 
         title="حساب الأفراد والمنشآت الصغيرة"
         isImageRequired={false}
-        isEmailRequired={false}
+        isEmailRequired={true} // جعلنا البريد إجباري هنا أيضاً
         showCompanyName={false}
         showSpecialization={false}
         showAddress={true}
@@ -599,7 +599,7 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
       <RegisterForm 
         title="تسجيل الفنيين"
         isImageRequired={true}
-        isEmailRequired={false}
+        isEmailRequired={true} // جعلنا البريد إجباري هنا أيضاً
         showCompanyName={false}
         showSpecialization={true}
         showAddress={false}
@@ -829,7 +829,7 @@ function RegisterForm({
 
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold text-slate-700">
-            البريد الإلكتروني {isEmailRequired ? <span className="text-rose-500">(إجباري)</span> : <span className="text-slate-400">(اختياري)</span>}
+            البريد الإلكتروني <span className="text-rose-500">(إجباري لتحقق الإيميل)</span>
           </label>
           <input 
             type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)}
