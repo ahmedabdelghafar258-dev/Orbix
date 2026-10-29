@@ -303,7 +303,7 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
         phone: phone,
         email: email || '',
         specialization: specialization !== '-' ? specialization : '',
-        emailVerified: false, 
+        emailVerified: false, // تعيينه كغير موثق إجبارياً
         createdAt: new Date()
       };
 
@@ -318,13 +318,13 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
 
       await setDoc(doc(db, "users", user.uid), userData);
 
-      // إرسال كود التحقق والانتقال لشاشة إدخال الكود
+      // توليد وإرسال كود التحقق إجبارياً ثم التحويل لصفحة التأكيد
       const targetEmail = email || fakeEmail;
       await sendEmailVerificationCode(user.uid, targetEmail);
       
       setRegisteredUserId(user.uid);
       setRegisteredUserEmail(targetEmail);
-      setStep('verify-email');
+      setStep('verify-email'); // <-- تحويل إجباري لصفحة إدخال الكود
 
     } catch (error) {
       setErrorMsg('حدث خطأ أثناء إنشاء الحساب: ' + error.message);
@@ -343,7 +343,6 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
       await verifyEmailCode(registeredUserId, companyVerificationCode);
       alert('🎉 تم تأكيد البريد الإلكتروني بنجاح!');
 
-      // جلب بيانات المستخدم المحدثة وتمريرها لتسجيل الدخول الفوري والتحويل للوحة التحكم
       const userDocRef = doc(db, "users", registeredUserId);
       const userDocSnap = await getDoc(userDocRef);
 
@@ -357,7 +356,7 @@ export default function SignUp({ onSwitchToSignIn, onBack, onLoginSuccess }) {
     }
   };
 
-  // عرض صفحة التحقق إذا وصل لها المستخدم
+  // عرض صفحة التحقق حصرياً إذا وصل لها المستخدم
   if (step === 'verify-email') {
     return (
       <VerifyCompanyEmail 
