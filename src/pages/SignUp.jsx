@@ -23,7 +23,6 @@ import {
   sendEmailVerificationCode,
   verifyEmailCode
 } from '../services/authService';
-import VerifyCompanyEmail from './VerifyCompanyEmail';
 
 const EGYPT_GOVERNORATES_DATA = {
   "الفيوم": {
@@ -287,9 +286,7 @@ export default function SignUp({
       let userData;
 
       if (!userDocSnap.exists()) {
-        const baseUsername = user.email
-          .split('@')[0]
-          .toLowerCase();
+        const baseUsername = user.email.split('@')[0].toLowerCase();
 
         const usersRef = collection(db, 'users');
         const usernameQuery = query(
@@ -432,13 +429,7 @@ export default function SignUp({
         return;
       }
 
-      // 1. إرسال كود التحقق بـ EmailJS أولاً قبل إنشاء الحساب للتأكد من أن البريد شغال وصحيح
-      await sendEmailVerificationCode(
-        'temp_verification_id',
-        trimmedEmail
-      );
-
-      // 2. إذا تم الإرسال بنجاح، نقوم بإنشاء الحساب في Firebase
+      // 1. إنشاء حساب Firebase أولاً
       const credential = await createUserWithEmailAndPassword(
         auth,
         trimmedEmail,
@@ -475,7 +466,7 @@ export default function SignUp({
 
       await setDoc(doc(db, 'users', createdUser.uid), userData);
 
-      // إعادة إرسال الكود بالمعرف الحقيقي للمستخدم لحفظه في قاعدة البيانات بشكل صحيح
+      // 2. إرسال كود التحقق عبر EmailJS إلى إيميل العميل
       await sendEmailVerificationCode(
         createdUser.uid,
         trimmedEmail
@@ -485,12 +476,10 @@ export default function SignUp({
       setRegisteredUserEmail(trimmedEmail);
       setCompanyVerificationCode('');
 
-      // إنهاء جلسة Firebase المؤقتة
+      // إنهاء الجلسة مؤقتاً حتى يتم تأكيد الكود
       await signOut(auth);
 
-      setPassword('');
-      setConfirmPassword('');
-
+      // الانتقال الفوري لصفحة إدخال الكود
       setStep('verify-email');
     } catch (error) {
       console.error('Registration & Email Error:', error);
@@ -509,7 +498,7 @@ export default function SignUp({
         setErrorMsg('كلمة المرور ضعيفة. استخدم كلمة مرور أقوى.');
       } else {
         setErrorMsg(
-          'فشل إرسال بريد التحقق عبر EmailJS تأكد من صحة البريد أو إعدادات الخدمة: ' +
+          'فشل إرسال بريد التحقق: ' +
           (error.message || 'خطأ غير معروف')
         );
       }
@@ -518,7 +507,7 @@ export default function SignUp({
     }
   };
 
-  const handleVerifyCompanySubmit = async (e) => {
+  const handleVerifyCodeSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -535,11 +524,13 @@ export default function SignUp({
     setLoading(true);
 
     try {
+      // 1. التحقق من الكود في قاعدة البيانات
       await verifyEmailCode(
         registeredUserId,
         companyVerificationCode.trim()
       );
 
+      // 2. جلب بيانات المستخدم المحدثة
       const userDocRef = doc(db, 'users', registeredUserId);
       const userDocSnap = await getDoc(userDocRef);
 
@@ -550,41 +541,30 @@ export default function SignUp({
       const userData = userDocSnap.data();
 
       if (userData.emailVerified !== true) {
-        throw new Error(
-          'تم فحص الكود، لكن حالة التحقق لم تُحدّث في قاعدة البيانات.'
-        );
+        throw new Error('فشل تحديث حالة توثيق البريد الإلكتروني.');
       }
 
-      const enteredPassword = window.prompt(
-        'تم التحقق من بريدك الإلكتروني. أدخل كلمة المرور لتسجيل الدخول.'
-      );
-
-      if (!enteredPassword) {
-        setErrorMsg(
-          'تم التحقق من البريد. يمكنك تسجيل الدخول باستخدام بريدك وكلمة المرور.'
-        );
-        return;
-      }
-
+      // 3. إعادة تسجيل الدخول أوتوماتيكياً بكلمة المرور الأصلية
       const credential = await signInWithEmailAndPassword(
         auth,
         registeredUserEmail,
-        enteredPassword
+        password
       );
 
       if (credential.user.uid !== registeredUserId) {
         await signOut(auth);
-        throw new Error('الحساب الذي سجل دخوله لا يطابق الحساب المتحقق منه.');
+        throw new Error('خطأ في مطابقة حساب المستخدم.');
       }
 
       if (typeof onLoginSuccess !== 'function') {
         await signOut(auth);
-        throw new Error('تعذر فتح الحساب بعد التحقق.');
+        throw new Error('تعذر فتح لوحة التحكم.');
       }
 
+      // 4. الدخول الناجح وتحويل العميل للوحة التحكم الخاصة به
       onLoginSuccess(userData);
     } catch (error) {
-      console.error('Email Verification Error:', error);
+      console.error('Verification Error:', error);
       setErrorMsg(
         error.message || 'كود التحقق غير صحيح أو انتهت صلاحيته.'
       );
@@ -607,8 +587,7 @@ export default function SignUp({
         registeredUserId,
         registeredUserEmail
       );
-
-      alert('تم إعادة إرسال كود التحقق بنجاح.');
+      alert('تم إعادة إرسال كود التحقق إلى بريدك بنجاح.');
     } catch (error) {
       setErrorMsg(
         'فشل إعادة إرسال الكود: ' +
@@ -619,20 +598,80 @@ export default function SignUp({
     }
   };
 
+  // شاشة إدخال كود التحقق الجديدة بالكامل
   if (step === 'verify-email') {
     return (
-      <VerifyCompanyEmail
-        companyVerificationCode={companyVerificationCode}
-        setCompanyVerificationCode={setCompanyVerificationCode}
-        handleVerifyCompanySubmit={handleVerifyCompanySubmit}
-        setStep={() => {
-          setErrorMsg('');
-          setStep('main');
-        }}
-        loading={loading}
-        errorMsg={errorMsg}
-        onResendCode={handleResendCode}
-      />
+      <div
+        className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 font-cairo bg-cover bg-center bg-no-repeat overflow-hidden"
+        style={{ backgroundImage: `url(${bgWaves})` }}
+        dir="rtl"
+      >
+        <form
+          onSubmit={handleVerifyCodeSubmit}
+          className="relative z-10 flex flex-col gap-4 w-full max-w-md p-8 shadow-2xl rounded-3xl border border-slate-100 bg-white/95 backdrop-blur-md text-center"
+        >
+          <div className="w-16 h-16 bg-purple-50 text-purple-700 rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-inner mb-2">
+            ✉️
+          </div>
+          <h2 className="text-2xl font-extrabold text-slate-900">
+            تأكيد البريد الإلكتروني
+          </h2>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            لقد أرسلنا كود تحقق مكون من <span className="font-bold text-purple-700">6 أرقام</span> إلى بريدك الإلكتروني: <br />
+            <span className="font-bold text-slate-900">{registeredUserEmail}</span>
+          </p>
+
+          {errorMsg && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold rounded-xl">
+              {errorMsg}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1 text-right mt-2">
+            <label className="text-xs font-bold text-slate-700">
+              اكتب كود التحقق هنا
+            </label>
+            <input
+              type="text"
+              maxLength={6}
+              placeholder="123456"
+              value={companyVerificationCode}
+              onChange={(e) => setCompanyVerificationCode(e.target.value)}
+              className="p-3 border border-slate-300 rounded-xl text-center text-xl tracking-widest font-bold focus:border-purple-700 outline-none bg-white"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-2 p-3.5 bg-purple-700 text-white font-bold rounded-xl hover:bg-purple-800 transition cursor-pointer disabled:opacity-50 text-sm shadow-md"
+          >
+            {loading ? 'جاري التحقق والدخول...' : 'تم (تأكيد ودخول)'}
+          </button>
+
+          <div className="flex items-center justify-between text-xs mt-2 px-1">
+            <button
+              type="button"
+              onClick={handleResendCode}
+              disabled={loading}
+              className="text-purple-700 font-bold hover:underline cursor-pointer"
+            >
+              إعادة إرسال الكود؟
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setErrorMsg('');
+                setStep('main');
+              }}
+              className="text-slate-500 hover:text-slate-700 font-medium cursor-pointer"
+            >
+              العودة للتسجيل
+            </button>
+          </div>
+        </form>
+      </div>
     );
   }
 
@@ -1360,7 +1399,7 @@ function RegisterForm({
           className="mt-2 p-3 bg-purple-700 text-white font-bold rounded-xl hover:bg-purple-800 transition cursor-pointer disabled:opacity-50 text-sm shadow-md"
         >
           {loading
-            ? 'جاري إرسال الكود وإنشاء الحساب...'
+            ? 'جاري إنشاء الحساب وإرسال الكود...'
             : 'إنشاء الحساب'}
         </button>
       </form>
