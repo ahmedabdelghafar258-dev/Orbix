@@ -18,12 +18,12 @@ import emailjs from '@emailjs/browser';
 // إعدادات EmailJS الخاصة بمشروع Orbix
 // =====================================================
 
-const EMAILJS_SERVICE_ID = 'Orbix'; // تم ضبط الـ ID الصحيح المطابق للوحة التحكم
+const EMAILJS_SERVICE_ID = 'Orbix';
 const EMAILJS_TEMPLATE_ID = 'template_lukfm65';
 const EMAILJS_PUBLIC_KEY = '8WP1f4i1pEbTOth8_';
 
 // =====================================================
-// إرسال كود التحقق إلى البريد الإلكتروني
+// إرسال كود التحقق إلى البريد الإلكتروني للعميل
 // =====================================================
 export const sendEmailVerificationCode = async (
   userId,
@@ -68,20 +68,20 @@ export const sendEmailVerificationCode = async (
       createdAt: new Date(),
     });
 
-    // إرسال البريد من خلال قالب EmailJS.
+    // إرسال البريد من خلال قالب EmailJS مع توجيه الإيميل للعميل حصرياً
     await emailjs.send(
       EMAILJS_SERVICE_ID,
       EMAILJS_TEMPLATE_ID,
       {
-        to_email: trimmedEmail,
-        verification_code: verificationCode,
+        to_email: trimmedEmail,          // هذا الحقل يضمن إرسال الرسالة لإيميل العميل (تأكد أن القالب يحتوي على {{to_email}} في حقل To Email)
+        verification_code: verificationCode, // كود التحقق المكون من 6 أرقام
       },
       {
         publicKey: EMAILJS_PUBLIC_KEY,
       }
     );
 
-    console.log('تم إرسال كود التحقق بنجاح.');
+    console.log('تم إرسال كود التحقق بنجاح إلى:', trimmedEmail);
 
     return true;
   } catch (error) {
