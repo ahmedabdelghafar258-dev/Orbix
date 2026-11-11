@@ -1,4 +1,5 @@
 import {
+  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
@@ -12,17 +13,9 @@ import {
 } from 'firebase/firestore';
 
 import { auth, db } from '../firebase';
-import emailjs from '@emailjs/browser';
 
 // =====================================================
-// إعدادات EmailJS الخاصة بمشروع Orbix
-// =====================================================
-const EMAILJS_SERVICE_ID = 'Orbix';
-const EMAILJS_TEMPLATE_ID = 'template_lukfm65';
-const EMAILJS_PUBLIC_KEY = '8WP1f4i1pEbTOth8_';
-
-// =====================================================
-// إرسال كود التحقق إلى البريد الإلكتروني للعميل
+// إرسال كود التحقق (مباشرة عبر النظام المحلي للـ Firestore)
 // =====================================================
 export const sendEmailVerificationCode = async (
   userId,
@@ -30,16 +23,6 @@ export const sendEmailVerificationCode = async (
 ) => {
   if (!userId || !userEmail?.trim()) {
     throw new Error('معرّف المستخدم والبريد الإلكتروني مطلوبان.');
-  }
-
-  if (
-    !EMAILJS_SERVICE_ID ||
-    !EMAILJS_TEMPLATE_ID ||
-    !EMAILJS_PUBLIC_KEY
-  ) {
-    throw new Error(
-      'إعدادات EmailJS غير مكتملة. راجع Service ID وTemplate ID وPublic Key.'
-    );
   }
 
   const trimmedEmail = userEmail.trim().toLowerCase();
@@ -59,7 +42,7 @@ export const sendEmailVerificationCode = async (
   );
 
   try {
-    // حفظ الكود ووقت انتهاء صلاحيته أولاً.
+    // حفظ الكود ووقت انتهاء صلاحيته في Firestore.
     await setDoc(verificationRef, {
       code: verificationCode,
       email: trimmedEmail,
@@ -67,40 +50,17 @@ export const sendEmailVerificationCode = async (
       createdAt: new Date(),
     });
 
-    // إرسال البريد عبر EmailJS باستخدام المعلمات المتوافقة مع القالب الافتراضي
-    await emailjs.send(
-      EMAILJS_SERVICE_ID,
-      EMAILJS_TEMPLATE_ID,
-      {
-        to_email: trimmedEmail,
-        to_name: trimmedEmail.split('@')[0],
-        message: verificationCode,
-        verification_code: verificationCode,
-      },
-      {
-        publicKey: EMAILJS_PUBLIC_KEY,
-      }
-    );
-
-    console.log('تم إرسال كود التحقق بنجاح إلى:', trimmedEmail);
+    // طباعة الكود في الـ Console للتجربة الفورية والسهلة بدون تعقيد
+    console.log('========================================');
+    console.log(`[Orbix Verification] كود التحقق لـ ${trimmedEmail} هو: ${verificationCode}`);
+    console.log('========================================');
 
     return true;
   } catch (error) {
-    console.error('EmailJS / Verification Error:', error);
+    console.error('Verification Code Generation Error:', error);
 
-    // حذف الكود إذا فشل الإرسال، حتى لا يبقى كود غير مُرسل.
-    try {
-      await deleteDoc(verificationRef);
-    } catch (deleteError) {
-      console.error(
-        'Could not delete unused verification code:',
-        deleteError
-      );
-    }
-
-    const errorDetails = error?.text || error?.message || 'خطأ غير معروف';
     throw new Error(
-      `فشل إرسال بريد التحقق عبر EmailJS تأكد من صحة البريد أو إعدادات الخدمة: ${errorDetails}`
+      `فشل إنشاء كود التحقق. حاول مرة أخرى. ${error?.message || ''}`
     );
   }
 };
