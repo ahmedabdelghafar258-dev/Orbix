@@ -466,7 +466,7 @@ export default function SignUp({
 
       await setDoc(doc(db, 'users', createdUser.uid), userData);
 
-      // 2. إرسال كود التحقق عبر EmailJS إلى إيميل العميل
+      // 2. إرسال كود التحقق الفعلي إلى البريد الإلكتروني للعميل
       await sendEmailVerificationCode(
         createdUser.uid,
         trimmedEmail
@@ -476,10 +476,10 @@ export default function SignUp({
       setRegisteredUserEmail(trimmedEmail);
       setCompanyVerificationCode('');
 
-      // إنهاء الجلسة مؤقتاً حتى يتم تأكيد الكود
+      // إنهاء الجلسة مؤقتاً حتى يدخل الكود الصحيح
       await signOut(auth);
 
-      // الانتقال الفوري لصفحة إدخال الكود
+      // الانتقال حصرياً لشاشة التحقق ومنع فتح المنصة
       setStep('verify-email');
     } catch (error) {
       console.error('Registration & Email Error:', error);
@@ -524,13 +524,13 @@ export default function SignUp({
     setLoading(true);
 
     try {
-      // 1. التحقق من الكود في قاعدة البيانات
+      // 1. التحقق الصارم من الكود في قاعدة البيانات
       await verifyEmailCode(
         registeredUserId,
         companyVerificationCode.trim()
       );
 
-      // 2. جلب بيانات المستخدم المحدثة
+      // 2. جلب بيانات المستخدم المحدثة والتأكد منها
       const userDocRef = doc(db, 'users', registeredUserId);
       const userDocSnap = await getDoc(userDocRef);
 
@@ -544,7 +544,7 @@ export default function SignUp({
         throw new Error('فشل تحديث حالة توثيق البريد الإلكتروني.');
       }
 
-      // 3. إعادة تسجيل الدخول أوتوماتيكياً بكلمة المرور الأصلية
+      // 3. إعادة تسجيل الدخول أوتوماتيكياً بكلمة المرور بعد نجاح التوثيق
       const credential = await signInWithEmailAndPassword(
         auth,
         registeredUserEmail,
@@ -561,7 +561,7 @@ export default function SignUp({
         throw new Error('تعذر فتح لوحة التحكم.');
       }
 
-      // 4. الدخول الناجح وتحويل العميل للوحة التحكم الخاصة به
+      // 4. السماح بالدخول للوحة التحكم حصرياً بعد التأكد التام
       onLoginSuccess(userData);
     } catch (error) {
       console.error('Verification Error:', error);
@@ -598,7 +598,6 @@ export default function SignUp({
     }
   };
 
-  // شاشة إدخال كود التحقق الجديدة بالكامل
   if (step === 'verify-email') {
     return (
       <div
