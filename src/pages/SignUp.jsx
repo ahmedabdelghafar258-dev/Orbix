@@ -350,18 +350,26 @@ export default function SignUp({
     setAttemptedSubmit(true);
     setErrorMsg('');
 
-    // 1. التحقق الصارم من البريد الإلكتروني ومنع الإيميلات الوهمية عبر رسالة من الموقع
+    // 1. تحقق صارم جداً من البريد الإلكتروني ومنع الإيميلات الوهمية تماماً
     const trimmedEmail = email ? email.trim().toLowerCase() : '';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     
     if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
-      setErrorMsg('البريد الإلكتروني المكتوب غير صحيح أو وهمي. يرجى إدخال بريد إلكتروني حقيقي وصحيح.');
+      setErrorMsg('البريد الإلكتروني المكتوب غير صحيح أو وهمي. يرجى إدخال بريد إلكتروني حقيقي.');
       return;
     }
 
-    const domainPart = trimmedEmail.split('@')[1];
-    if (!domainPart || !domainPart.includes('.') || domainPart.endsWith('.')) {
-      setErrorMsg('البريد الإلكتروني غير صحيح، تأكد من كتابة النطاق بشكل سليم (مثل gmail.com).');
+    // التأكد من وجود نطاق حقيقي يمتلك امتداداً صحيحاً مثل (gmail.com, outlook.com, yahoo.com)
+    const domainParts = trimmedEmail.split('@');
+    if (domainParts.length !== 2 || !domainParts[1].includes('.') || domainParts[1].endsWith('.') || domainParts[1].startsWith('.')) {
+      setErrorMsg('البريد الإلكتروني غير صحيح أو غير موجود. تأكد من كتابة نطاق البريد بشكل سليم.');
+      return;
+    }
+
+    // منع النطاقات الوهمية المخصصة للاختبار المحلي فقط مثل test.com أو example.com لو أردت حظرها، أو الاكتفاء بالهيكل الحقيقي
+    const invalidFakeDomains = ['test.com', 'example.com', 'fake.com', 'abc.com', 'xyz.com'];
+    if (invalidFakeDomains.includes(domainParts[1])) {
+      setErrorMsg('عذراً، هذا البريد الإلكتروني وهمي أو غير مسموح به. يرجى استخدام بريد إلكتروني حقيقي.');
       return;
     }
 
@@ -437,7 +445,7 @@ export default function SignUp({
         return;
       }
 
-      // 2. إنشاء حساب Firebase أولاً
+      // 2. محاولة إنشاء الحساب في Firebase Authentication (هنا Firebase نفسه هيتحقق لو الإيميل مرفوض أو صيغته غير حقيقية)
       const credential = await createUserWithEmailAndPassword(
         auth,
         trimmedEmail,
@@ -474,7 +482,7 @@ export default function SignUp({
 
       await setDoc(doc(db, 'users', createdUser.uid), userData);
 
-      // 3. إرسال كود التحقق عبر EmailJS إلى إيميل العميل الحقيقي
+      // 3. إرسال كود التحقق الفعلي عبر الإيميل
       await sendEmailVerificationCode(
         createdUser.uid,
         trimmedEmail
@@ -484,14 +492,15 @@ export default function SignUp({
       setRegisteredUserEmail(trimmedEmail);
       setCompanyVerificationCode('');
 
-      // إنهاء الجلسة مؤقتاً حتى يتم إدخال الكود
+      // قفل الجلسة مؤقتاً ومنع الدخول نهائياً حتى يتم إدخال الكود الصحيح
       await signOut(auth);
 
-      // الانتقال حصرياً لشاشة إدخال كود التحقق
+      // الانتقال حصرياً لشاشة إدخال الكود
       setStep('verify-email');
     } catch (error) {
       console.error('Registration & Email Error:', error);
 
+      // لو حصل أي خطأ في إنشاء الحساب أو الإيميل، يتم مسح الحساب المؤقت لو تم إنشاؤه وضمان عدم تمرير المستخدم
       if (createdUser && auth.currentUser?.uid === createdUser.uid) {
         try {
           await signOut(auth);
@@ -502,11 +511,13 @@ export default function SignUp({
 
       if (error.code === 'auth/email-already-in-use') {
         setErrorMsg('هذا البريد الإلكتروني مسجل بالفعل.');
+      } else if (error.code === 'auth/invalid-email') {
+        setErrorMsg('البريد الإلكتروني المدخل غير صحيح أو غير موجود.');
       } else if (error.code === 'auth/weak-password') {
         setErrorMsg('كلمة المرور ضعيفة. استخدم كلمة مرور أقوى.');
       } else {
         setErrorMsg(
-          'فشل إرسال بريد التحقق: ' +
+          'البريد الإلكتروني غير صحيح أو فشل إرسال الكود إليه: ' +
           (error.message || 'خطأ غير معروف')
         );
       }
@@ -532,7 +543,7 @@ export default function SignUp({
     setLoading(true);
 
     try {
-      // 4. التحقق الصارم من الكود في قاعدة البيانات وتفعيل الحساب
+      // 4. التحقق الصارم من الكود في قاعدة البيانات
       await verifyEmailCode(
         registeredUserId,
         companyVerificationCode.trim()
@@ -567,6 +578,7 @@ export default function SignUp({
         throw new Error('تعذر فتح لوحة التحكم.');
       }
 
+      // الدخول الناجح للوحة التحكم بعد اكتمال التحقق حصرياً
       onLoginSuccess(userData);
     } catch (error) {
       console.error('Verification Error:', error);
