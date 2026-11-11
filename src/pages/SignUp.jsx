@@ -350,6 +350,21 @@ export default function SignUp({
     setAttemptedSubmit(true);
     setErrorMsg('');
 
+    // 1. التحقق الصارم من البريد الإلكتروني ومنع الإيميلات الوهمية عبر رسالة من الموقع
+    const trimmedEmail = email ? email.trim().toLowerCase() : '';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
+      setErrorMsg('البريد الإلكتروني المكتوب غير صحيح أو وهمي. يرجى إدخال بريد إلكتروني حقيقي وصحيح.');
+      return;
+    }
+
+    const domainPart = trimmedEmail.split('@')[1];
+    if (!domainPart || !domainPart.includes('.') || domainPart.endsWith('.')) {
+      setErrorMsg('البريد الإلكتروني غير صحيح، تأكد من كتابة النطاق بشكل سليم (مثل gmail.com).');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setErrorMsg('كلمتا المرور غير متطابقتين!');
       return;
@@ -370,13 +385,6 @@ export default function SignUp({
       specialization === '-'
     ) {
       setErrorMsg('يرجى اختيار التخصص المناسب قبل إتمام التسجيل.');
-      return;
-    }
-
-    const trimmedEmail = email ? email.trim().toLowerCase() : '';
-
-    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setErrorMsg('يرجى إدخال بريد إلكتروني صحيح لتلقي كود التحقق.');
       return;
     }
 
@@ -429,7 +437,7 @@ export default function SignUp({
         return;
       }
 
-      // 1. إنشاء حساب Firebase أولاً
+      // 2. إنشاء حساب Firebase أولاً
       const credential = await createUserWithEmailAndPassword(
         auth,
         trimmedEmail,
@@ -466,7 +474,7 @@ export default function SignUp({
 
       await setDoc(doc(db, 'users', createdUser.uid), userData);
 
-      // 2. إرسال كود التحقق الفعلي إلى البريد الإلكتروني للعميل
+      // 3. إرسال كود التحقق عبر EmailJS إلى إيميل العميل الحقيقي
       await sendEmailVerificationCode(
         createdUser.uid,
         trimmedEmail
@@ -476,10 +484,10 @@ export default function SignUp({
       setRegisteredUserEmail(trimmedEmail);
       setCompanyVerificationCode('');
 
-      // إنهاء الجلسة مؤقتاً حتى يدخل الكود الصحيح
+      // إنهاء الجلسة مؤقتاً حتى يتم إدخال الكود
       await signOut(auth);
 
-      // الانتقال حصرياً لشاشة التحقق ومنع فتح المنصة
+      // الانتقال حصرياً لشاشة إدخال كود التحقق
       setStep('verify-email');
     } catch (error) {
       console.error('Registration & Email Error:', error);
@@ -524,13 +532,12 @@ export default function SignUp({
     setLoading(true);
 
     try {
-      // 1. التحقق الصارم من الكود في قاعدة البيانات
+      // 4. التحقق الصارم من الكود في قاعدة البيانات وتفعيل الحساب
       await verifyEmailCode(
         registeredUserId,
         companyVerificationCode.trim()
       );
 
-      // 2. جلب بيانات المستخدم المحدثة والتأكد منها
       const userDocRef = doc(db, 'users', registeredUserId);
       const userDocSnap = await getDoc(userDocRef);
 
@@ -544,7 +551,6 @@ export default function SignUp({
         throw new Error('فشل تحديث حالة توثيق البريد الإلكتروني.');
       }
 
-      // 3. إعادة تسجيل الدخول أوتوماتيكياً بكلمة المرور بعد نجاح التوثيق
       const credential = await signInWithEmailAndPassword(
         auth,
         registeredUserEmail,
@@ -561,7 +567,6 @@ export default function SignUp({
         throw new Error('تعذر فتح لوحة التحكم.');
       }
 
-      // 4. السماح بالدخول للوحة التحكم حصرياً بعد التأكد التام
       onLoginSuccess(userData);
     } catch (error) {
       console.error('Verification Error:', error);
